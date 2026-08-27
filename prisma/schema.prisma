@@ -1,0 +1,393 @@
+// Qonys.kz — схема данных
+// Платформа подселения и аренды жилья в Казахстане
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Пользователи ───────────────────────────
+
+enum Role {
+  USER // обычный пользователь
+  AGENT // риелтор / агентство
+  MODERATOR // модератор объявлений
+  ADMIN // полный доступ
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  PENDING_PHONE
+}
+
+model User {
+  id           String     @id @default(cuid())
+  phone        String     @unique // формат +7XXXXXXXXXX
+  email        String?    @unique
+  passwordHash String?
+  name         String
+  avatarUrl    String?
+  role         Role       @default(USER)
+  status       UserStatus @default(PENDING_PHONE)
+  city         String     @default("almaty")
+  birthYear    Int?
+  gender       Gender?
+  occupation   Occupation?
+  about        String?
+  phoneVerified Boolean   @default(false)
+  lastSeenAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  wallet        Wallet?
+  listings      Listing[]
+  payments      Payment[]
+  subscriptions Subscription[]
+  favorites     Favorite[]
+  complaintsMade Complaint[]  @relation("ComplaintAuthor")
+  contactUnlocks ContactUnlock[]
+  adminLogs     AdminLog[]
+  sentMessages  Message[]
+  threadsA      Thread[]      @relation("ThreadUserA")
+  threadsB      Thread[]      @relation("ThreadUserB")
+
+  @@index([role, status])
+  @@index([city])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum Occupation {
+  STUDENT // студент(ка)
+  WORKING // работает
+  REMOTE // удалёнка
+  OTHER
+}
+
+// ─────────────────────────── Объявления ───────────────────────────
+
+enum ListingKind {
+  OFFER_ROOM // сдают комнату
+  SEEK_ROOMMATE // ищут соседа
+}
+
+enum HousingType {
+  SEPARATE_ROOM // отдельная комната
+  SHARED_ROOM // делить комнату
+  BED_SPACE // койко-место
+}
+
+enum ListingStatus {
+  DRAFT
+  MODERATION
+  ACTIVE
+  REJECTED
+  ARCHIVED
+  EXPIRED
+}
+
+model District {
+  id      String    @id @default(cuid())
+  city    String    @default("almaty")
+  name    String // Бостандыкский
+  slug    String    @unique
+  listings Listing[]
+
+  @@unique([city, name])
+}
+
+model Listing {
+  id           String        @id @default(cuid())
+  publicId     Int           @unique @default(autoincrement()) // номер для поиска: №1042
+  authorId     String
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  kind         ListingKind
+  title        String
+  description  String
+  price        Int // тенге в месяц
+  deposit      Int           @default(0)
+  housingType  HousingType
+  rooms        Int           @default(2) // комнат в квартире
+  districtId   String?
+  district     District?     @relation(fields: [districtId], references: [id])
+  city         String        @default("almaty")
+  metro        String?
+  address      String?
+  lat          Float?
+  lng          Float?
+  preferGender Gender? // пол соседа
+  minAge       Int?
+  maxAge       Int?
+  habits       String[]      @default([]) // ["не курю","без животных","тихий"]
+  amenities    String[]      @default([]) // ["wifi","стиральная","мебель"]
+  status       ListingStatus @default(MODERATION)
+  rejectReason String?
+  views        Int           @default(0)
+  contactViews Int           @default(0)
+  rank         Float         @default(0) // вычисляемый вес в ленте
+  bumpedAt     DateTime      @default(now()) // последнее поднятие
+  publishedAt  DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  photos     ListingPhoto[]
+  promotions Promotion[]
+  favorites  Favorite[]
+  complaints Complaint[]
+  unlocks    ContactUnlock[]
+  threads    Thread[]
+
+  @@index([status, city, bumpedAt])
+  @@index([authorId])
+  @@index([price])
+  @@index([rank])
+}
+
+model ListingPhoto {
+  id        String  @id @default(cuid())
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url       String
+  sort      Int     @default(0)
+
+  @@index([listingId])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+}
+
+// ─────────────────────────── Монетизация ───────────────────────────
+
+enum PromoType {
+  TOP // закрепить в топе ленты
+  URGENT // метка «Срочно»
+  HIGHLIGHT // цветная подсветка карточки
+  BUMP // поднятие в ленте
+  PHOTO_PACK // расширенный фотопакет
+}
+
+// Прайс задаётся в админке, а не в коде
+model PromoPackage {
+  id         String      @id @default(cuid())
+  type       PromoType
+  title      String // «ТОП на 7 дней»
+  days       Int         @default(7)
+  price      Int // в тенге
+  sort       Int         @default(0)
+  isActive   Boolean     @default(true)
+  promotions Promotion[]
+
+  @@index([type, isActive])
+}
+
+model Promotion {
+  id        String       @id @default(cuid())
+  listingId String
+  listing   Listing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  packageId String
+  package   PromoPackage @relation(fields: [packageId], references: [id])
+  type      PromoType
+  amount    Int
+  startsAt  DateTime     @default(now())
+  endsAt    DateTime
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+
+  @@index([listingId, isActive, endsAt])
+}
+
+// Тарифы для риелторов и агентств
+model Plan {
+  id            String         @id @default(cuid())
+  slug          String         @unique // start | business | pro
+  title         String
+  price         Int // тенге в месяц
+  listingLimit  Int // сколько активных объявлений
+  freeBumps     Int            @default(0) // бесплатных поднятий в месяц
+  freeTopDays   Int            @default(0)
+  hasAnalytics  Boolean        @default(false)
+  hasBadge      Boolean        @default(false) // «Проверенный риелтор»
+  isActive      Boolean        @default(true)
+  sort          Int            @default(0)
+  subscriptions Subscription[]
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId    String
+  plan      Plan               @relation(fields: [planId], references: [id])
+  status    SubscriptionStatus @default(ACTIVE)
+  autoRenew Boolean            @default(true)
+  startsAt  DateTime           @default(now())
+  endsAt    DateTime
+  createdAt DateTime           @default(now())
+
+  @@index([userId, status])
+}
+
+// Платное открытие контактов
+model ContactUnlock {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  amount    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+}
+
+// ─────────────────────────── Кошелёк и платежи ───────────────────────────
+
+model Wallet {
+  id           String        @id @default(cuid())
+  userId       String        @unique
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Int           @default(0) // тенге
+  bonusBalance Int           @default(0) // промо-тенге, не выводятся
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+enum TxType {
+  TOPUP // пополнение
+  PURCHASE // списание за услугу
+  REFUND
+  BONUS
+  ADMIN_ADJUST
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  walletId  String
+  wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type      TxType
+  amount    Int // положительное = приход, отрицательное = расход
+  balanceAfter Int
+  comment   String?
+  refId     String? // id промо / платежа / подписки
+  createdAt DateTime @default(now())
+
+  @@index([walletId, createdAt])
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount       Int
+  currency     String        @default("KZT")
+  provider     String        @default("mock") // kaspi | robokassa | mock
+  externalId   String?       @unique // id транзакции провайдера
+  idempotencyKey String      @unique
+  status       PaymentStatus @default(PENDING)
+  purpose      String        @default("TOPUP") // TOPUP | PLAN | PROMO
+  meta         Json?
+  createdAt    DateTime      @default(now())
+  paidAt       DateTime?
+
+  @@index([userId, status])
+}
+
+// ─────────────────────────── Общение и модерация ───────────────────────────
+
+model Thread {
+  id        String    @id @default(cuid())
+  listingId String
+  listing   Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userAId   String
+  userA     User      @relation("ThreadUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   String
+  userB     User      @relation("ThreadUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  messages  Message[]
+
+  @@unique([listingId, userAId, userBId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body      String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+enum ComplaintStatus {
+  NEW
+  IN_REVIEW
+  RESOLVED
+  DECLINED
+}
+
+model Complaint {
+  id        String          @id @default(cuid())
+  listingId String
+  listing   Listing         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?           @relation("ComplaintAuthor", fields: [authorId], references: [id])
+  reason    String
+  comment   String?
+  status    ComplaintStatus @default(NEW)
+  createdAt DateTime        @default(now())
+
+  @@index([status, createdAt])
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
+  action    String // listing.approve, user.block, plan.update
+  entity    String
+  entityId  String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Настройки платформы, редактируемые из админки
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /cabinet
+Disallow: /api
+
+Sitemap: https://qonys.kz/sitemap.xml
