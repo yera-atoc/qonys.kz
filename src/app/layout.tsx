@@ -26,7 +26,13 @@ export const metadata: Metadata = {
     title: 'Qonys — подселение в Алматы',
     description: 'Двусторонняя площадка для поиска подселения и соседей.',
     type: 'website',
-    locale: 'ru_KZ'
+    locale: 'ru_KZ',
+    images: ['/logo.svg']
+  },
+  icons: {
+    icon: '/logo.svg',
+    shortcut: '/logo.svg',
+    apple: '/logo.svg'
   }
 };
 

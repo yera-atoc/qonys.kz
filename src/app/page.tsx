@@ -69,7 +69,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             <span className="pill pill-dot animate-rise">Бета в Алматы · скоро Астана и Шымкент</span>
 
             <h1 className="mt-8 max-w-4xl font-display text-[42px] font-extrabold leading-[1.04] tracking-[-0.03em] sm:text-[64px] lg:text-[76px]">
-              Подселение, которое не превратится в кошмар.
+              Подселение, которое находит соседа за один день.
             </h1>
 
             <p className="mt-7 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-[19px]">
