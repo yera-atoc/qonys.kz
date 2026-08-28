@@ -12,9 +12,9 @@ export function EmptyState({
   actionLabel?: string;
 }) {
   return (
-    <div className="card-q flex flex-col items-center gap-3 px-6 py-14 text-center">
-      <h3 className="font-display text-lg font-semibold">{title}</h3>
-      <p className="max-w-sm text-sm text-muted">{hint}</p>
+    <div className="flex flex-col items-center gap-4 rounded-2xl border border-line bg-subtle px-6 py-20 text-center">
+      <h3 className="font-display text-[22px] font-bold tracking-tight">{title}</h3>
+      <p className="max-w-md text-[15px] text-muted">{hint}</p>
       {actionHref && actionLabel && (
         <Link href={actionHref} className="btn-primary mt-2">
           {actionLabel}

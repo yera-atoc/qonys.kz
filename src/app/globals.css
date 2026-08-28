@@ -9,23 +9,22 @@ html {
 
 body {
   @apply bg-paper text-ink antialiased;
-  font-feature-settings: 'ss01', 'cv11';
 }
 
 ::selection {
-  background: #0f6b57;
+  background: #0b0b0b;
   color: #fff;
 }
 
 *:focus-visible {
-  outline: 2px solid #0f6b57;
+  outline: 2px solid #0b0b0b;
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: 999px;
 }
 
 @layer components {
   .container-q {
-    @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6;
+    @apply mx-auto w-full max-w-[1200px] px-5 sm:px-8;
   }
 
   .card-q {
@@ -33,35 +32,40 @@ body {
   }
 
   .btn {
-    @apply relative inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5
-           text-sm font-semibold transition-all duration-150 active:scale-[.97]
-           disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-full px-6 py-3
+           text-[15px] font-semibold transition-all duration-150 active:scale-[.97]
+           disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
-  .btn-primary { @apply btn bg-brand text-white hover:bg-brand-ink; }
-  .btn-ghost { @apply btn border border-line bg-card text-ink hover:border-brand hover:text-brand; }
-  .btn-accent { @apply btn bg-accent text-ink hover:brightness-95; }
+  .btn-primary { @apply btn bg-ink text-white hover:bg-ink/85; }
+  .btn-ghost { @apply btn border border-line bg-white text-ink shadow-pill hover:border-ink/25; }
   .btn-danger { @apply btn bg-danger text-white hover:brightness-95; }
+  .btn-sm { @apply px-4 py-2 text-sm; }
+
+  .pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-line bg-white px-3.5 py-2
+           text-[13px] font-medium text-ink shadow-pill;
+  }
+  .pill-dot::before {
+    content: '';
+    @apply h-1.5 w-1.5 rounded-full bg-mint-dot;
+  }
 
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2.5 py-1
-           text-[11px] font-medium leading-none text-muted;
+    @apply inline-flex items-center gap-1 rounded-full bg-subtle px-2.5 py-1 text-[12px]
+           font-medium leading-none text-muted;
   }
 
   .field {
-    @apply w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm text-ink transition
-           placeholder:text-muted/60 focus:border-brand focus:outline-none;
+    @apply w-full rounded-xl border border-line bg-white px-4 py-3 text-[15px] text-ink transition
+           placeholder:text-muted/60 focus:border-ink/30 focus:outline-none;
   }
 
   .label {
-    @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted;
-  }
-
-  .eyebrow {
-    @apply text-xs font-semibold uppercase tracking-[0.18em] text-brand;
+    @apply mb-2 block text-[13px] font-medium text-muted;
   }
 
   .skeleton {
-    @apply animate-pulse rounded-lg bg-line/60;
+    @apply animate-pulse rounded-xl bg-line/70;
   }
 }
 

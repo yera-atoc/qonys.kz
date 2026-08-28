@@ -5,14 +5,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        paper: '#FAF8F4',
+        paper: '#FFFFFF',
+        subtle: '#F7F8F7',
         card: '#FFFFFF',
-        ink: '#101C1A',
-        muted: '#6B7A75',
-        line: '#E4E0D7',
-        brand: { DEFAULT: '#0F6B57', ink: '#0A4A3C', soft: '#E7F2EE' },
-        accent: { DEFAULT: '#E8A33D', soft: '#FDF3E2' },
-        danger: { DEFAULT: '#C2453A', soft: '#FBEAE8' }
+        ink: '#0B0B0B',
+        muted: '#71767B',
+        line: '#E9EAE8',
+        mint: { DEFAULT: '#DEF1E4', ink: '#0F6B3F', dot: '#22A06B' },
+        danger: { DEFAULT: '#C2453A', soft: '#FBEAE8' },
+        gold: { DEFAULT: '#F4C443', soft: '#FDF6E3' }
       },
       fontFamily: {
         display: ['var(--font-display)', 'system-ui', 'sans-serif'],
@@ -20,13 +21,14 @@ const config: Config = {
       },
       borderRadius: { xl: '14px', '2xl': '20px', '3xl': '28px' },
       boxShadow: {
-        card: '0 1px 2px rgba(16,28,26,.04), 0 8px 24px -12px rgba(16,28,26,.18)',
-        pop: '0 12px 40px -16px rgba(16,28,26,.35)'
+        card: '0 1px 2px rgba(11,11,11,.04), 0 6px 20px -10px rgba(11,11,11,.14)',
+        pop: '0 18px 44px -18px rgba(11,11,11,.28)',
+        pill: '0 1px 2px rgba(11,11,11,.06)'
       },
       keyframes: {
-        rise: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'none' } }
+        rise: { '0%': { opacity: '0', transform: 'translateY(12px)' }, '100%': { opacity: '1', transform: 'none' } }
       },
-      animation: { rise: 'rise .5s cubic-bezier(.2,.8,.2,1) both' }
+      animation: { rise: 'rise .6s cubic-bezier(.2,.8,.2,1) both' }
     }
   },
   plugins: []

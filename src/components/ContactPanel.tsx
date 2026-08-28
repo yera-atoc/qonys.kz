@@ -5,22 +5,10 @@ import Link from 'next/link';
 import { tenge } from '@/lib/format';
 
 export function ContactPanel({
-  listingId,
-  unlocked,
-  phone,
-  price,
-  signedIn
-}: {
-  listingId: string;
-  unlocked: boolean;
-  phone: string | null;
-  price: number;
-  signedIn: boolean;
-}) {
+  listingId, unlocked, phone, price, signedIn
+}: { listingId: string; unlocked: boolean; phone: string | null; price: number; signedIn: boolean }) {
   const [state, setState] = useState<{ phone: string | null; error: string | null; loading: boolean }>({
-    phone,
-    error: null,
-    loading: false
+    phone, error: null, loading: false
   });
 
   async function unlock() {
@@ -40,7 +28,7 @@ export function ContactPanel({
 
   if (!signedIn) {
     return (
-      <Link href="/login" className="btn-primary mt-5 w-full">
+      <Link href="/login" className="btn-primary mt-6 w-full">
         Войти и написать
       </Link>
     );
@@ -48,10 +36,8 @@ export function ContactPanel({
 
   if (unlocked || state.phone) {
     return (
-      <div className="mt-5 space-y-2">
-        <a href={`tel:${state.phone}`} className="btn-primary w-full">
-          {state.phone}
-        </a>
+      <div className="mt-6 space-y-2.5">
+        <a href={`tel:${state.phone}`} className="btn-primary w-full">{state.phone}</a>
         <a
           href={`https://wa.me/${(state.phone ?? '').replace(/\D/g, '')}`}
           target="_blank"
@@ -65,17 +51,15 @@ export function ContactPanel({
   }
 
   return (
-    <div className="mt-5 space-y-2">
+    <div className="mt-6 space-y-3">
       <button onClick={unlock} disabled={state.loading} className="btn-primary w-full">
         {state.loading ? 'Открываем…' : `Показать контакты · ${tenge(price)}`}
       </button>
-      <p className="text-center text-xs text-muted">Списывается с баланса кабинета, один раз на объявление</p>
+      <p className="text-center text-[13px] text-muted">Списывается с баланса кабинета, один раз на объявление</p>
       {state.error === 'INSUFFICIENT_FUNDS' ? (
-        <Link href="/cabinet/billing" className="btn-ghost w-full">
-          Пополнить баланс
-        </Link>
+        <Link href="/cabinet/billing" className="btn-ghost w-full">Пополнить баланс</Link>
       ) : (
-        state.error && <p className="text-center text-xs text-danger">{state.error}</p>
+        state.error && <p className="text-center text-[13px] text-danger">{state.error}</p>
       )}
     </div>
   );

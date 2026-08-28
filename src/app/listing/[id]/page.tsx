@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ContactPanel } from '@/components/ContactPanel';
 import { ReportButton } from '@/components/ReportButton';
+import { Gallery } from '@/components/Gallery';
 import { tenge, timeAgo, KIND_LABEL, HOUSING_LABEL, OCCUPATION_LABEL } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -37,94 +38,93 @@ export default async function ListingPage({ params }: { params: { id: string } }
 
   const priceSetting = await prisma.setting.findUnique({ where: { key: 'contact_unlock_price' } });
   const age = listing.author.birthYear ? new Date().getFullYear() - listing.author.birthYear : null;
+  const location = [listing.district?.name, listing.metro ? `м. ${listing.metro}` : null].filter(Boolean).join(' · ');
 
   return (
     <>
       <Header />
-      <main className="container-q py-10">
-        <Link href="/" className="text-sm text-muted hover:text-ink">
-          ← Вернуться в ленту
+      <main className="container-q py-8">
+        <Link href="/" className="inline-flex items-center gap-2 text-[15px] text-muted transition hover:text-ink">
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M10 3 5 8l5 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Вернуться в ленту
         </Link>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_340px]">
-          <article>
-            <div className="flex flex-wrap gap-2">
-              <span className="chip border-brand/30 bg-brand-soft text-brand-ink">{KIND_LABEL[listing.kind]}</span>
+        <div className="mt-6 grid gap-10 lg:grid-cols-[1fr_360px]">
+          <article className="min-w-0">
+            <Gallery photos={listing.photos.map((p) => p.url)} />
+
+            <div className="mt-8 flex flex-wrap items-center gap-2">
+              <span className="pill pill-dot">{KIND_LABEL[listing.kind]}</span>
               {listing.promotions.some((p) => p.type === 'URGENT') && (
-                <span className="chip border-danger/30 bg-danger-soft text-danger">Срочно</span>
+                <span className="pill border-danger/20 bg-danger text-white">Срочно</span>
               )}
-              <span className="chip">№{listing.publicId}</span>
+              <span className="pill">№{listing.publicId}</span>
             </div>
 
-            <h1 className="mt-4 font-display text-3xl font-bold leading-tight">{listing.title}</h1>
+            <h1 className="mt-5 font-display text-[32px] font-extrabold leading-tight tracking-[-0.02em] sm:text-[40px]">
+              {listing.title}
+            </h1>
 
-            <div className="price-rail mt-6">
-              <p className="font-display text-3xl font-bold">{tenge(listing.price)}</p>
-              <p className="text-sm text-muted">
-                в месяц{listing.deposit > 0 ? ` · залог ${tenge(listing.deposit)}` : ''}
-              </p>
-            </div>
+            <p className="mt-4 text-[16px] text-muted">{location || 'Алматы'}</p>
 
-            {listing.photos.length > 0 && (
-              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {listing.photos.map((p) => (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img key={p.id} src={p.url} alt="" className="aspect-[4/3] w-full rounded-xl object-cover" />
-                ))}
-              </div>
-            )}
-
-            <div className="card-q mt-8 grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
-              <Fact label="Район" value={listing.district?.name ?? '—'} />
-              <Fact label="Метро" value={listing.metro ?? '—'} />
+            <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
+              <Fact label="Цена" value={tenge(listing.price)} />
+              <Fact label="Залог" value={listing.deposit > 0 ? tenge(listing.deposit) : 'нет'} />
               <Fact label="Тип" value={HOUSING_LABEL[listing.housingType]} />
               <Fact label="Комнат" value={String(listing.rooms)} />
             </div>
 
-            <section className="mt-8">
-              <h2 className="font-display text-lg font-semibold">Описание</h2>
-              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink/90">{listing.description}</p>
+            <section className="mt-10">
+              <h2 className="font-display text-[22px] font-bold tracking-tight">Описание</h2>
+              <p className="mt-4 whitespace-pre-line text-[16px] leading-relaxed">{listing.description}</p>
             </section>
 
             {listing.habits.length > 0 && (
-              <section className="mt-8">
-                <h2 className="font-display text-lg font-semibold">Привычки и правила</h2>
-                <div className="mt-3 flex flex-wrap gap-2">
+              <section className="mt-10">
+                <h2 className="font-display text-[22px] font-bold tracking-tight">Привычки и правила</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
                   {listing.habits.map((h) => (
-                    <span key={h} className="chip">{h}</span>
+                    <span key={h} className="rounded-full bg-subtle px-4 py-2 text-[14px] text-ink">{h}</span>
                   ))}
                 </div>
               </section>
             )}
 
             {listing.amenities.length > 0 && (
-              <section className="mt-8">
-                <h2 className="font-display text-lg font-semibold">В квартире есть</h2>
-                <div className="mt-3 flex flex-wrap gap-2">
+              <section className="mt-10">
+                <h2 className="font-display text-[22px] font-bold tracking-tight">В квартире есть</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
                   {listing.amenities.map((a) => (
-                    <span key={a} className="chip">{a}</span>
+                    <span key={a} className="rounded-full bg-subtle px-4 py-2 text-[14px] text-ink">{a}</span>
                   ))}
                 </div>
               </section>
             )}
 
-            <p className="mt-10 text-xs text-muted">
+            <p className="mt-12 text-[13px] text-muted">
               Опубликовано {timeAgo(listing.publishedAt ?? listing.createdAt)} · {listing.views} просмотров
             </p>
           </article>
 
           <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <div className="card-q p-5">
-              <div className="flex items-center gap-3">
-                <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-soft font-semibold text-brand-ink">
+            <div className="card-q p-6">
+              <p className="font-display text-[30px] font-extrabold leading-none tracking-tight">
+                {tenge(listing.price)}
+              </p>
+              <p className="mt-1.5 text-[14px] text-muted">в месяц</p>
+
+              <div className="mt-6 flex items-center gap-3 border-t border-line pt-6">
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-subtle text-[14px] font-semibold text-muted">
                   {listing.author.name.slice(0, 2).toUpperCase()}
                 </span>
                 <div>
-                  <p className="font-semibold">
+                  <p className="text-[15px] font-medium">
                     {listing.author.name}
                     {age ? `, ${age}` : ''}
                   </p>
-                  <p className="text-xs text-muted">
+                  <p className="text-[13px] text-muted">
                     {listing.author.occupation ? OCCUPATION_LABEL[listing.author.occupation] : 'Профиль'}
                     {listing.author.phoneVerified ? ' · телефон подтверждён' : ''}
                   </p>
@@ -140,16 +140,16 @@ export default async function ListingPage({ params }: { params: { id: string } }
               />
             </div>
 
-            <div className="card-q p-5 text-sm text-muted">
-              <h3 className="mb-2 font-semibold text-ink">Не переводите предоплату</h3>
-              <p>
+            <div className="rounded-2xl bg-subtle p-6">
+              <h3 className="text-[15px] font-semibold">Не переводите предоплату</h3>
+              <p className="mt-2 text-[14px] leading-relaxed text-muted">
                 Осмотрите комнату лично, познакомьтесь с соседями и только потом обсуждайте деньги. Qonys не участвует в
                 расчётах.{' '}
-                <Link href="/safety" className="text-brand hover:underline">
+                <Link href="/safety" className="text-ink underline underline-offset-2">
                   Как проверить объявление
                 </Link>
               </p>
-              <div className="mt-4 border-t border-line pt-4">
+              <div className="mt-5 border-t border-line pt-5">
                 <ReportButton listingId={listing.id} />
               </div>
             </div>
@@ -163,9 +163,9 @@ export default async function ListingPage({ params }: { params: { id: string } }
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-sm font-medium">{value}</p>
+    <div className="bg-white p-5">
+      <p className="text-[13px] text-muted">{label}</p>
+      <p className="mt-1.5 font-display text-[17px] font-bold tracking-tight">{value}</p>
     </div>
   );
 }

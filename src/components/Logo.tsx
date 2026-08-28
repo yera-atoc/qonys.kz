@@ -1,12 +1,13 @@
 import Link from 'next/link';
 
-export function Logo({ compact = false }: { compact?: boolean }) {
+export function Logo({ city = 'Алматы' }: { city?: string | null }) {
   return (
-    <Link href="/" className="flex items-center gap-2">
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand font-display text-sm font-bold text-white">
+    <Link href="/" className="flex items-center gap-2.5">
+      <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink font-display text-[15px] font-bold text-white">
         Q
       </span>
-      {!compact && <span className="font-display text-lg font-semibold tracking-tight">Qonys</span>}
+      <span className="font-display text-[19px] font-bold tracking-tight">Qonys</span>
+      {city && <span className="hidden text-[15px] text-muted sm:block">{city}</span>}
     </Link>
   );
 }

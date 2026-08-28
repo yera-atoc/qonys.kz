@@ -1,57 +1,30 @@
 import Link from 'next/link';
-import { Logo } from './Logo';
 
 export function Footer() {
   return (
-    <footer className="mt-24 border-t border-line bg-card">
-      <div className="container-q grid gap-8 py-12 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <Logo />
-          <p className="mt-3 max-w-xs text-sm text-muted">
-            Подселение и поиск соседей в Казахстане. Алматы — сейчас, Астана и Шымкент — скоро.
-          </p>
+    <footer className="mt-20 border-t border-line">
+      <div className="container-q flex flex-wrap items-center justify-between gap-6 py-10">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-ink font-display text-sm font-bold text-white">
+            Q
+          </span>
+          <span className="text-[15px] text-muted">
+            <span className="font-display font-bold text-ink">Qonys</span> · подселение в Алматы
+          </span>
         </div>
-        <FooterCol
-          title="Площадка"
-          links={[
-            ['/', 'Лента объявлений'],
-            ['/post', 'Разместить объявление'],
-            ['/pricing', 'Тарифы и продвижение']
-          ]}
-        />
-        <FooterCol
-          title="Помощь"
-          links={[
-            ['/safety', 'Безопасность сделок'],
-            ['/about', 'О сервисе'],
-            ['/rules', 'Правила размещения']
-          ]}
-        />
-        <div>
-          <h4 className="label">Связаться</h4>
-          <a href="mailto:hi@qonys.kz" className="text-sm text-ink hover:text-brand">
-            hi@qonys.kz
-          </a>
-          <p className="mt-4 text-xs text-muted">© {new Date().getFullYear()} Qonys.kz</p>
+
+        <nav className="flex flex-wrap gap-6 text-[15px] text-muted">
+          <Link href="/pricing" className="hover:text-ink">Тарифы</Link>
+          <Link href="/safety" className="hover:text-ink">Безопасность</Link>
+          <Link href="/rules" className="hover:text-ink">Правила</Link>
+          <Link href="/about" className="hover:text-ink">О сервисе</Link>
+        </nav>
+
+        <div className="flex items-center gap-6 text-[15px] text-muted">
+          <a href="mailto:hi@qonys.kz" className="hover:text-ink">hi@qonys.kz</a>
+          <span>© {new Date().getFullYear()}</span>
         </div>
       </div>
     </footer>
-  );
-}
-
-function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
-  return (
-    <div>
-      <h4 className="label">{title}</h4>
-      <ul className="space-y-2 text-sm text-muted">
-        {links.map(([href, label]) => (
-          <li key={href}>
-            <Link href={href} className="hover:text-ink">
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

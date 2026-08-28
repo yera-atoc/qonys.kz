@@ -26,36 +26,30 @@ export function ReportButton({ listingId }: { listingId: string }) {
     setOpen(false);
   }
 
-  if (sent) return <p className="text-xs text-muted">Жалоба отправлена, модератор посмотрит в течение суток.</p>;
+  if (sent) return <p className="text-[13px] text-muted">Жалоба отправлена, модератор посмотрит в течение суток.</p>;
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-xs text-muted underline hover:text-danger">
+      <button onClick={() => setOpen(true)} className="text-[13px] text-muted underline underline-offset-2 hover:text-danger">
         Пожаловаться на объявление
       </button>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <select className="field" value={reason} onChange={(e) => setReason(e.target.value)}>
-        {REASONS.map((r) => (
-          <option key={r}>{r}</option>
-        ))}
+        {REASONS.map((r) => (<option key={r}>{r}</option>))}
       </select>
       <textarea
-        className="field min-h-[70px]"
+        className="field min-h-[80px]"
         placeholder="Что не так? Пара деталей поможет модератору."
         value={comment}
         onChange={(e) => setComment(e.target.value)}
       />
       <div className="flex gap-2">
-        <button onClick={send} className="btn-danger flex-1 text-xs">
-          Отправить
-        </button>
-        <button onClick={() => setOpen(false)} className="btn-ghost text-xs">
-          Отмена
-        </button>
+        <button onClick={send} className="btn-danger btn-sm flex-1">Отправить</button>
+        <button onClick={() => setOpen(false)} className="btn-ghost btn-sm">Отмена</button>
       </div>
     </div>
   );
