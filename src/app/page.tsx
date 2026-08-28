@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Filters } from '@/components/Filters';
-import { ListingCard } from '@/components/ListingCard';
-import { EmptyState } from '@/components/EmptyState';
+import { FeedView } from '@/components/FeedView';
+import { getKzCity } from '@/lib/kzCities';
 import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,10 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Record<string, string | undefined>;
 
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
-  const where: Prisma.ListingWhereInput = { status: 'ACTIVE', city: 'almaty' };
+  const city = getKzCity(searchParams.city ?? '')?.slug ?? 'almaty';
+  const cityInfo = getKzCity(city);
+
+  const where: Prisma.ListingWhereInput = { status: 'ACTIVE', city };
 
   if (searchParams.kind) where.kind = searchParams.kind as any;
   if (searchParams.district) where.districtId = searchParams.district;
@@ -23,7 +26,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   const [districts, listings, total] = await Promise.all([
     prisma.district.findMany({
-      where: { city: 'almaty' },
+      where: { city },
       orderBy: { name: 'asc' },
       select: { id: true, name: true }
     }),
@@ -33,14 +36,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       take: 36,
       select: {
         id: true, kind: true, title: true, price: true, rooms: true, metro: true,
-        housingType: true, bumpedAt: true,
+        housingType: true, bumpedAt: true, lat: true, lng: true,
         district: { select: { name: true } },
         author: { select: { name: true, birthYear: true, occupation: true } },
         photos: { select: { url: true }, orderBy: { sort: 'asc' }, take: 1 },
         promotions: { where: { isActive: true, endsAt: { gt: new Date() } }, select: { type: true } }
       }
     }),
-    prisma.listing.count({ where: { status: 'ACTIVE' } })
+    prisma.listing.count({ where: { status: 'ACTIVE', city } })
   ]);
 
   const cards = listings.map((l) => ({
@@ -58,6 +61,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     promoTypes: l.promotions.map((p) => p.type)
   }));
 
+  const mapListings = listings.map((l) => ({
+    id: l.id,
+    title: l.title,
+    price: l.price,
+    kind: l.kind,
+    lat: l.lat,
+    lng: l.lng
+  }));
+
   return (
     <>
       <Header />
@@ -66,15 +78,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         {/* Герой с мятным градиентом */}
         <section className="relative overflow-hidden bg-gradient-to-b from-[#EDF6EF] via-[#F6FAF7] to-white">
           <div className="container-q relative py-16 sm:py-24">
-            <span className="pill pill-dot animate-rise">Бета в Алматы · скоро Астана и Шымкент</span>
+            <span className="pill pill-dot animate-rise">Работает по всему Казахстану · {cityInfo?.name ?? 'Алматы'}</span>
 
             <h1 className="mt-8 max-w-4xl font-display text-[42px] font-extrabold leading-[1.04] tracking-[-0.03em] sm:text-[64px] lg:text-[76px]">
               Подселение, которое находит соседа за один день.
             </h1>
 
             <p className="mt-7 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-[19px]">
-              Qonys соединяет тех, кто ищет комнату, и тех, кто ищет соседа. Прозрачные анкеты, фильтры по привычкам и
-              району — без бесконечного скролла по чатам.
+              Qonys соединяет тех, кто ищет комнату, и тех, кто ищет соседа, в любом городе Казахстана. Прозрачные
+              анкеты, фильтры по привычкам и району, карта объявлений — без бесконечного скролла по чатам.
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
@@ -83,8 +95,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             </div>
 
             <dl className="mt-16 flex flex-wrap gap-x-16 gap-y-8">
-              <Stat value={`${total.toLocaleString('ru-RU')}+`} label="анкет в Алматы" />
-              <Stat value="8" label="районов" />
+              <Stat value={`${total.toLocaleString('ru-RU')}+`} label={`анкет в городе ${cityInfo?.name ?? 'Алматы'}`} />
+              <Stat value={String(districts.length || '—')} label="районов на карте" />
               <Stat value="24 ч" label="до первого ответа" />
             </dl>
           </div>
@@ -99,25 +111,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
           <div className="mt-8">
             <Suspense fallback={<div className="h-32" />}>
-              <Filters districts={districts} />
+              <Filters districts={districts} city={city} />
             </Suspense>
           </div>
 
           <div className="mt-10">
-            {cards.length === 0 ? (
-              <EmptyState
-                title="Под эти фильтры пока ничего нет"
-                hint="Расширьте бюджет или уберите район — в Алматы каждый день появляются новые анкеты."
-                actionHref="/"
-                actionLabel="Сбросить фильтры"
-              />
-            ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {cards.map((item) => (
-                  <ListingCard key={item.id} item={item} />
-                ))}
-              </div>
-            )}
+            <FeedView cards={cards} mapListings={mapListings} citySlug={city} />
           </div>
         </section>
 

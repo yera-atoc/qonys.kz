@@ -1,0 +1,994 @@
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..ecc27c0
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,13 @@
++DATABASE_URL="postgresql://user:password@localhost:5432/qonys?schema=public"
++DIRECT_URL="postgresql://user:password@localhost:5432/qonys?schema=public"
++
++NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
++NEXTAUTH_URL="http://localhost:3000"
++
++PAYMENT_PROVIDER="mock"
++PAYMENT_MERCHANT_ID=""
++PAYMENT_SECRET=""
++PAYMENT_WEBHOOK_SECRET=""
++
++# Карта (2ГИС) — бесплатный ключ: https://dev.2gis.com/
++NEXT_PUBLIC_2GIS_API_KEY=""
+diff --git a/src/app/api/districts/route.ts b/src/app/api/districts/route.ts
+new file mode 100644
+index 0000000..2200c50
+--- /dev/null
++++ b/src/app/api/districts/route.ts
+@@ -0,0 +1,12 @@
++import { NextResponse } from 'next/server';
++import { prisma } from '@/lib/prisma';
++
++export async function GET(req: Request) {
++  const city = new URL(req.url).searchParams.get('city') ?? 'almaty';
++  const districts = await prisma.district.findMany({
++    where: { city },
++    orderBy: { name: 'asc' },
++    select: { id: true, name: true }
++  });
++  return NextResponse.json({ districts });
++}
+diff --git a/src/app/api/listings/[id]/route.ts b/src/app/api/listings/[id]/route.ts
+index 29a76e7..526a1cf 100644
+--- a/src/app/api/listings/[id]/route.ts
++++ b/src/app/api/listings/[id]/route.ts
+@@ -55,8 +55,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
+       deposit: d.deposit,
+       housingType: d.housingType,
+       rooms: d.rooms,
++      city: d.city,
+       districtId: d.districtId || null,
+       metro: d.metro || null,
++      address: d.address || null,
++      lat: d.lat ?? null,
++      lng: d.lng ?? null,
+       preferGender: d.preferGender || null,
+       habits: d.habits,
+       amenities: d.amenities,
+diff --git a/src/app/api/listings/route.ts b/src/app/api/listings/route.ts
+new file mode 100644
+index 0000000..71624fa
+--- /dev/null
++++ b/src/app/api/listings/route.ts
+@@ -0,0 +1,59 @@
++import { NextResponse } from 'next/server';
++import { prisma } from '@/lib/prisma';
++import { currentUser } from '@/lib/auth';
++import { listingSchema } from '@/lib/validation';
++
++export async function POST(req: Request) {
++  const me = await currentUser();
++  if (!me) return NextResponse.json({ error: 'Войдите в аккаунт' }, { status: 401 });
++
++  const body = await req.json();
++  const parsed = listingSchema.safeParse(body);
++  if (!parsed.success) {
++    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
++  }
++  const d = parsed.data;
++
++  const [activeCount, subscription, freeLimit] = await Promise.all([
++    prisma.listing.count({ where: { authorId: me.id, status: { in: ['ACTIVE', 'MODERATION'] } } }),
++    prisma.subscription.findFirst({
++      where: { userId: me.id, status: 'ACTIVE', endsAt: { gt: new Date() } },
++      include: { plan: true }
++    }),
++    prisma.setting.findUnique({ where: { key: 'free_listings_per_user' } })
++  ]);
++
++  const limit = subscription?.plan.listingLimit ?? Number(freeLimit?.value ?? 2);
++  if (activeCount >= limit) {
++    return NextResponse.json({ error: 'LIMIT_REACHED' }, { status: 403 });
++  }
++
++  const listing = await prisma.listing.create({
++    data: {
++      authorId: me.id,
++      kind: d.kind,
++      title: d.title,
++      description: d.description,
++      price: d.price,
++      deposit: d.deposit,
++      housingType: d.housingType,
++      rooms: d.rooms,
++      city: d.city,
++      districtId: d.districtId || null,
++      metro: d.metro || null,
++      address: d.address || null,
++      lat: d.lat ?? null,
++      lng: d.lng ?? null,
++      preferGender: d.preferGender || null,
++      minAge: d.minAge ?? null,
++      maxAge: d.maxAge ?? null,
++      habits: d.habits,
++      amenities: d.amenities,
++      status: 'MODERATION',
++      publishedAt: null,
++      expiresAt: new Date(Date.now() + 30 * 864e5)
++    }
++  });
++
++  return NextResponse.json({ ok: true, id: listing.id });
++}
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 0d697c9..d8e073e 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma';
+ import { Header } from '@/components/Header';
+ import { Footer } from '@/components/Footer';
+ import { Filters } from '@/components/Filters';
+-import { ListingCard } from '@/components/ListingCard';
+-import { EmptyState } from '@/components/EmptyState';
++import { FeedView } from '@/components/FeedView';
++import { getKzCity } from '@/lib/kzCities';
+ import type { Prisma } from '@prisma/client';
+ 
+ export const dynamic = 'force-dynamic';
+@@ -13,7 +13,10 @@ export const dynamic = 'force-dynamic';
+ type SearchParams = Record<string, string | undefined>;
+ 
+ export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
+-  const where: Prisma.ListingWhereInput = { status: 'ACTIVE', city: 'almaty' };
++  const city = getKzCity(searchParams.city ?? '')?.slug ?? 'almaty';
++  const cityInfo = getKzCity(city);
++
++  const where: Prisma.ListingWhereInput = { status: 'ACTIVE', city };
+ 
+   if (searchParams.kind) where.kind = searchParams.kind as any;
+   if (searchParams.district) where.districtId = searchParams.district;
+@@ -23,7 +26,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
+ 
+   const [districts, listings, total] = await Promise.all([
+     prisma.district.findMany({
+-      where: { city: 'almaty' },
++      where: { city },
+       orderBy: { name: 'asc' },
+       select: { id: true, name: true }
+     }),
+@@ -33,14 +36,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
+       take: 36,
+       select: {
+         id: true, kind: true, title: true, price: true, rooms: true, metro: true,
+-        housingType: true, bumpedAt: true,
++        housingType: true, bumpedAt: true, lat: true, lng: true,
+         district: { select: { name: true } },
+         author: { select: { name: true, birthYear: true, occupation: true } },
+         photos: { select: { url: true }, orderBy: { sort: 'asc' }, take: 1 },
+         promotions: { where: { isActive: true, endsAt: { gt: new Date() } }, select: { type: true } }
+       }
+     }),
+-    prisma.listing.count({ where: { status: 'ACTIVE' } })
++    prisma.listing.count({ where: { status: 'ACTIVE', city } })
+   ]);
+ 
+   const cards = listings.map((l) => ({
+@@ -58,6 +61,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
+     promoTypes: l.promotions.map((p) => p.type)
+   }));
+ 
++  const mapListings = listings.map((l) => ({
++    id: l.id,
++    title: l.title,
++    price: l.price,
++    kind: l.kind,
++    lat: l.lat,
++    lng: l.lng
++  }));
++
+   return (
+     <>
+       <Header />
+@@ -66,15 +78,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
+         {/* Герой с мятным градиентом */}
+         <section className="relative overflow-hidden bg-gradient-to-b from-[#EDF6EF] via-[#F6FAF7] to-white">
+           <div className="container-q relative py-16 sm:py-24">
+-            <span className="pill pill-dot animate-rise">Бета в Алматы · скоро Астана и Шымкент</span>
++            <span className="pill pill-dot animate-rise">Работает по всему Казахстану · {cityInfo?.name ?? 'Алматы'}</span>
+ 
+             <h1 className="mt-8 max-w-4xl font-display text-[42px] font-extrabold leading-[1.04] tracking-[-0.03em] sm:text-[64px] lg:text-[76px]">
+               Подселение, которое находит соседа за один день.
+             </h1>
+ 
+             <p className="mt-7 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-[19px]">
+-              Qonys соединяет тех, кто ищет комнату, и тех, кто ищет соседа. Прозрачные анкеты, фильтры по привычкам и
+-              району — без бесконечного скролла по чатам.
++              Qonys соединяет тех, кто ищет комнату, и тех, кто ищет соседа, в любом городе Казахстана. Прозрачные
++              анкеты, фильтры по привычкам и району, карта объявлений — без бесконечного скролла по чатам.
+             </p>
+ 
+             <div className="mt-9 flex flex-wrap gap-3">
+@@ -83,8 +95,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
+             </div>
+ 
+             <dl className="mt-16 flex flex-wrap gap-x-16 gap-y-8">
+-              <Stat value={`${total.toLocaleString('ru-RU')}+`} label="анкет в Алматы" />
+-              <Stat value="8" label="районов" />
++              <Stat value={`${total.toLocaleString('ru-RU')}+`} label={`анкет в городе ${cityInfo?.name ?? 'Алматы'}`} />
++              <Stat value={String(districts.length || '—')} label="районов на карте" />
+               <Stat value="24 ч" label="до первого ответа" />
+             </dl>
+           </div>
+@@ -99,25 +111,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
+ 
+           <div className="mt-8">
+             <Suspense fallback={<div className="h-32" />}>
+-              <Filters districts={districts} />
++              <Filters districts={districts} city={city} />
+             </Suspense>
+           </div>
+ 
+           <div className="mt-10">
+-            {cards.length === 0 ? (
+-              <EmptyState
+-                title="Под эти фильтры пока ничего нет"
+-                hint="Расширьте бюджет или уберите район — в Алматы каждый день появляются новые анкеты."
+-                actionHref="/"
+-                actionLabel="Сбросить фильтры"
+-              />
+-            ) : (
+-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+-                {cards.map((item) => (
+-                  <ListingCard key={item.id} item={item} />
+-                ))}
+-              </div>
+-            )}
++            <FeedView cards={cards} mapListings={mapListings} citySlug={city} />
+           </div>
+         </section>
+ 
+diff --git a/src/app/post/page.tsx b/src/app/post/page.tsx
+index 27b416f..2004e00 100644
+--- a/src/app/post/page.tsx
++++ b/src/app/post/page.tsx
+@@ -13,8 +13,11 @@ export default async function PostPage() {
+   const me = await currentUser();
+   if (!me) redirect('/login?callbackUrl=/post');
+ 
++  const myProfile = await prisma.user.findUnique({ where: { id: me.id }, select: { city: true } });
++  const initialCity = myProfile?.city ?? 'almaty';
++
+   const [districts, activeCount, subscription, freeLimit] = await Promise.all([
+-    prisma.district.findMany({ where: { city: 'almaty' }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
++    prisma.district.findMany({ where: { city: initialCity }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+     prisma.listing.count({ where: { authorId: me.id, status: { in: ['ACTIVE', 'MODERATION'] } } }),
+     prisma.subscription.findFirst({
+       where: { userId: me.id, status: 'ACTIVE', endsAt: { gt: new Date() } },
+@@ -54,7 +57,7 @@ export default async function PostPage() {
+           </div>
+         ) : (
+           <div className="mt-10">
+-            <ListingForm districts={districts} />
++            <ListingForm districts={districts} initialCity={initialCity} />
+           </div>
+         )}
+       </main>
+diff --git a/src/components/FeedView.tsx b/src/components/FeedView.tsx
+new file mode 100644
+index 0000000..a23f42a
+--- /dev/null
++++ b/src/components/FeedView.tsx
+@@ -0,0 +1,55 @@
++'use client';
++
++import { useState } from 'react';
++import { ListingCard, type ListingCardData } from '@/components/ListingCard';
++import { EmptyState } from '@/components/EmptyState';
++import { ListingsMap, type MapListing } from '@/components/ListingsMap';
++
++export function FeedView({
++  cards,
++  mapListings,
++  citySlug
++}: {
++  cards: ListingCardData[];
++  mapListings: MapListing[];
++  citySlug: string;
++}) {
++  const [view, setView] = useState<'list' | 'map'>('list');
++
++  return (
++    <div>
++      <div className="flex items-center gap-2">
++        {(['list', 'map'] as const).map((v) => (
++          <button
++            key={v}
++            onClick={() => setView(v)}
++            className={`rounded-full px-5 py-2.5 text-[15px] font-medium transition ${
++              view === v ? 'bg-ink text-white' : 'border border-line bg-white text-muted shadow-pill hover:text-ink'
++            }`}
++          >
++            {v === 'list' ? 'Списком' : 'На карте'}
++          </button>
++        ))}
++      </div>
++
++      <div className="mt-6">
++        {view === 'map' ? (
++          <ListingsMap listings={mapListings} citySlug={citySlug} />
++        ) : cards.length === 0 ? (
++          <EmptyState
++            title="Под эти фильтры пока ничего нет"
++            hint="Расширьте бюджет, смените город или уберите район."
++            actionHref="/"
++            actionLabel="Сбросить фильтры"
++          />
++        ) : (
++          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
++            {cards.map((item) => (
++              <ListingCard key={item.id} item={item} />
++            ))}
++          </div>
++        )}
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/Filters.tsx b/src/components/Filters.tsx
+index d748ba0..eb2bb24 100644
+--- a/src/components/Filters.tsx
++++ b/src/components/Filters.tsx
+@@ -3,8 +3,9 @@
+ import { useRouter, useSearchParams } from 'next/navigation';
+ import { useState, useTransition } from 'react';
+ import { tenge } from '@/lib/format';
++import { KZ_CITIES_BY_REGION } from '@/lib/kzCities';
+ 
+-type Props = { districts: { id: string; name: string }[] };
++type Props = { districts: { id: string; name: string }[]; city: string };
+ 
+ const KINDS = [
+   { value: '', label: 'Все' },
+@@ -12,7 +13,7 @@ const KINDS = [
+   { value: 'SEEK_ROOMMATE', label: 'Ищут соседа' }
+ ];
+ 
+-export function Filters({ districts }: Props) {
++export function Filters({ districts, city }: Props) {
+   const router = useRouter();
+   const params = useSearchParams();
+   const [pending, startTransition] = useTransition();
+@@ -48,7 +49,26 @@ export function Filters({ districts }: Props) {
+         ))}
+       </div>
+ 
+-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
++      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
++        <div>
++          <label className="label" htmlFor="f-city">Город</label>
++          <select
++            id="f-city"
++            className="field"
++            disabled={pending}
++            value={city}
++            onChange={(e) => apply({ city: e.target.value, district: '' })}
++          >
++            {Object.entries(KZ_CITIES_BY_REGION).map(([region, cities]) => (
++              <optgroup key={region} label={region}>
++                {cities.map((c) => (
++                  <option key={c.slug} value={c.slug}>{c.name}</option>
++                ))}
++              </optgroup>
++            ))}
++          </select>
++        </div>
++
+         <div>
+           <label className="label" htmlFor="f-district">Район</label>
+           <select
+diff --git a/src/components/ListingForm.tsx b/src/components/ListingForm.tsx
+index ee359d7..3dde179 100644
+--- a/src/components/ListingForm.tsx
++++ b/src/components/ListingForm.tsx
+@@ -3,14 +3,31 @@
+ import { useState } from 'react';
+ import Link from 'next/link';
+ import { useRouter } from 'next/navigation';
++import { KZ_CITIES_BY_REGION } from '@/lib/kzCities';
++import { LocationPicker } from '@/components/LocationPicker';
+ 
+ const HABITS = ['не курю', 'курю на балконе', 'без животных', 'есть кот', 'тихий режим', 'ранние подъёмы', 'готовлю дома', 'без гостей'];
+ const AMENITIES = ['wi-fi', 'стиральная машина', 'мебель', 'кондиционер', 'посудомойка', 'парковка', 'лифт', 'своя ванная'];
+ 
+-export function ListingForm({ districts, initial }: { districts: { id: string; name: string }[]; initial?: any }) {
++export function ListingForm({
++  districts,
++  initial,
++  initialCity = 'almaty'
++}: {
++  districts: { id: string; name: string }[];
++  initial?: any;
++  initialCity?: string;
++}) {
+   const router = useRouter();
+   const [habits, setHabits] = useState<string[]>(initial?.habits ?? []);
+   const [amenities, setAmenities] = useState<string[]>(initial?.amenities ?? []);
++  const [city, setCity] = useState(initial?.city ?? initialCity);
++  const [cityDistricts, setCityDistricts] = useState(districts);
++  const [location, setLocation] = useState<{ lat: number | null; lng: number | null; address: string | null }>({
++    lat: initial?.lat ?? null,
++    lng: initial?.lng ?? null,
++    address: initial?.address ?? null
++  });
+   const [error, setError] = useState<string | null>(null);
+   const [loading, setLoading] = useState(false);
+   const [done, setDone] = useState(false);
+@@ -18,6 +35,18 @@ export function ListingForm({ districts, initial }: { districts: { id: string; n
+   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
+     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+ 
++  async function onCityChange(next: string) {
++    setCity(next);
++    setLocation({ lat: null, lng: null, address: null });
++    try {
++      const res = await fetch(`/api/districts?city=${encodeURIComponent(next)}`);
++      const data = await res.json();
++      setCityDistricts(data.districts ?? []);
++    } catch {
++      setCityDistricts([]);
++    }
++  }
++
+   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+     e.preventDefault();
+     setLoading(true);
+@@ -28,7 +57,15 @@ export function ListingForm({ districts, initial }: { districts: { id: string; n
+     const res = await fetch(initial ? `/api/listings/${initial.id}` : '/api/listings', {
+       method: initial ? 'PATCH' : 'POST',
+       headers: { 'Content-Type': 'application/json' },
+-      body: JSON.stringify({ ...payload, habits, amenities })
++      body: JSON.stringify({
++        ...payload,
++        habits,
++        amenities,
++        city,
++        lat: location.lat,
++        lng: location.lng,
++        address: location.address ?? payload.address
++      })
+     });
+     const data = await res.json();
+     setLoading(false);
+@@ -143,19 +180,61 @@ export function ListingForm({ districts, initial }: { districts: { id: string; n
+       </div>
+ 
+       <div className="grid gap-5 sm:grid-cols-2">
++        <div>
++          <label className="label" htmlFor="city">Город</label>
++          <select
++            id="city"
++            name="city"
++            className="field"
++            value={city}
++            onChange={(e) => onCityChange(e.target.value)}
++          >
++            {Object.entries(KZ_CITIES_BY_REGION).map(([region, cities]) => (
++              <optgroup key={region} label={region}>
++                {cities.map((c) => (
++                  <option key={c.slug} value={c.slug}>{c.name}</option>
++                ))}
++              </optgroup>
++            ))}
++          </select>
++        </div>
+         <div>
+           <label className="label" htmlFor="districtId">Район</label>
+           <select id="districtId" name="districtId" className="field" defaultValue={initial?.districtId ?? ''}>
+             <option value="">Выберите район</option>
+-            {districts.map((d) => (
++            {cityDistricts.map((d) => (
+               <option key={d.id} value={d.id}>{d.name}</option>
+             ))}
+           </select>
+         </div>
++      </div>
++
++      <div className="grid gap-5 sm:grid-cols-2">
+         <div>
+           <label className="label" htmlFor="metro">Ближайшее метро</label>
+           <input id="metro" name="metro" className="field" placeholder="Алатау" defaultValue={initial?.metro ?? ''} />
+         </div>
++        <div>
++          <label className="label" htmlFor="address">Адрес (необязательно)</label>
++          <input
++            id="address"
++            name="address"
++            className="field"
++            placeholder="Улица, дом"
++            value={location.address ?? ''}
++            onChange={(e) => setLocation((v) => ({ ...v, address: e.target.value }))}
++          />
++        </div>
++      </div>
++
++      <div>
++        <label className="label">Точка на карте</label>
++        <LocationPicker
++          citySlug={city}
++          lat={location.lat}
++          lng={location.lng}
++          onChange={(v) => setLocation(v)}
++        />
+       </div>
+ 
+       <Chips title="Привычки и правила" options={HABITS} selected={habits} onToggle={(v) => toggle(habits, setHabits, v)} />
+diff --git a/src/components/ListingsMap.tsx b/src/components/ListingsMap.tsx
+new file mode 100644
+index 0000000..96456ff
+--- /dev/null
++++ b/src/components/ListingsMap.tsx
+@@ -0,0 +1,147 @@
++'use client';
++
++import { useEffect, useRef, useState } from 'react';
++import Link from 'next/link';
++import { tenge } from '@/lib/format';
++import { geocodeCity } from '@/lib/geocode2gis';
++import { KZ_DEFAULT_CENTER, getKzCity } from '@/lib/kzCities';
++
++const API_KEY = process.env.NEXT_PUBLIC_2GIS_API_KEY;
++const SCRIPT_SRC = 'https://mapgl.2gis.com/api/js/v1';
++
++export type MapListing = {
++  id: string;
++  title: string;
++  price: number;
++  kind: 'OFFER_ROOM' | 'SEEK_ROOMMATE';
++  lat: number | null;
++  lng: number | null;
++};
++
++declare global {
++  interface Window {
++    mapgl?: any;
++  }
++}
++
++let scriptPromise: Promise<void> | null = null;
++function loadMapgl(): Promise<void> {
++  if (window.mapgl) return Promise.resolve();
++  if (scriptPromise) return scriptPromise;
++  scriptPromise = new Promise((resolve, reject) => {
++    const script = document.createElement('script');
++    script.src = SCRIPT_SRC;
++    script.async = true;
++    script.onload = () => resolve();
++    script.onerror = () => reject(new Error('mapgl failed to load'));
++    document.head.appendChild(script);
++  });
++  return scriptPromise;
++}
++
++export function ListingsMap({ listings, citySlug }: { listings: MapListing[]; citySlug: string }) {
++  const containerRef = useRef<HTMLDivElement>(null);
++  const mapRef = useRef<any>(null);
++  const markersRef = useRef<any[]>([]);
++  const [ready, setReady] = useState(false);
++  const [failed, setFailed] = useState(false);
++
++  const pins = listings.filter((l) => l.lat != null && l.lng != null);
++
++  // Инициализация карты один раз
++  useEffect(() => {
++    if (!API_KEY || !containerRef.current) return;
++    let cancelled = false;
++
++    (async () => {
++      try {
++        await loadMapgl();
++        if (cancelled || !containerRef.current) return;
++
++        const known = getKzCity(citySlug);
++        let center: [number, number] = known?.lng && known?.lat ? [known.lng, known.lat] : KZ_DEFAULT_CENTER;
++
++        if (!known?.lat) {
++          const geo = await geocodeCity(known?.name ?? citySlug);
++          if (geo) center = [geo.lng, geo.lat];
++        }
++
++        const map = new window.mapgl.Map(containerRef.current, {
++          center,
++          zoom: pins.length ? 12 : 11,
++          key: API_KEY
++        });
++        mapRef.current = map;
++        setReady(true);
++      } catch {
++        setFailed(true);
++      }
++    })();
++
++    return () => {
++      cancelled = true;
++      mapRef.current?.destroy?.();
++      mapRef.current = null;
++    };
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [citySlug]);
++
++  // Перерисовка меток при смене выборки объявлений
++  useEffect(() => {
++    if (!ready || !mapRef.current || !window.mapgl) return;
++
++    markersRef.current.forEach((m) => m.destroy());
++    markersRef.current = [];
++
++    pins.forEach((listing) => {
++      const el = document.createElement('div');
++      el.className =
++        listing.kind === 'OFFER_ROOM'
++          ? 'rounded-full bg-mint-ink px-3 py-1.5 text-[13px] font-bold text-white shadow-pop whitespace-nowrap cursor-pointer'
++          : 'rounded-full bg-ink px-3 py-1.5 text-[13px] font-bold text-white shadow-pop whitespace-nowrap cursor-pointer';
++      el.textContent = tenge(listing.price);
++      el.onclick = () => window.open(`/listing/${listing.id}`, '_self');
++
++      const marker = new window.mapgl.HtmlMarker(mapRef.current, {
++        coordinates: [listing.lng, listing.lat],
++        html: el,
++        anchor: [0, 0.5] as any
++      });
++      markersRef.current.push(marker);
++    });
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [ready, listings]);
++
++  if (!API_KEY) {
++    return (
++      <div className="grid h-[520px] place-items-center rounded-2xl border border-dashed border-line bg-subtle px-8 text-center">
++        <div>
++          <p className="font-display text-[18px] font-bold tracking-tight">Карта не подключена</p>
++          <p className="mt-2 max-w-sm text-[14px] text-muted">
++            Получите бесплатный ключ на dev.2gis.com и добавьте его в переменную окружения
++            <code className="mx-1 rounded bg-white px-1.5 py-0.5 text-[13px]">NEXT_PUBLIC_2GIS_API_KEY</code>.
++          </p>
++        </div>
++      </div>
++    );
++  }
++
++  if (failed) {
++    return (
++      <div className="grid h-[520px] place-items-center rounded-2xl border border-line bg-subtle text-[14px] text-muted">
++        Не удалось загрузить карту. Проверьте соединение и ключ API.
++      </div>
++    );
++  }
++
++  return (
++    <div className="relative h-[520px] overflow-hidden rounded-2xl border border-line shadow-card">
++      <div ref={containerRef} className="h-full w-full" />
++      {pins.length === 0 && ready && (
++        <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
++          <span className="pill bg-white shadow-pop">В этом городе пока нет объявлений с адресом на карте</span>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/LocationPicker.tsx b/src/components/LocationPicker.tsx
+new file mode 100644
+index 0000000..cf68f54
+--- /dev/null
++++ b/src/components/LocationPicker.tsx
+@@ -0,0 +1,116 @@
++'use client';
++
++import { useEffect, useRef, useState } from 'react';
++import { reverseGeocode, geocodeCity } from '@/lib/geocode2gis';
++import { KZ_DEFAULT_CENTER, getKzCity } from '@/lib/kzCities';
++
++const API_KEY = process.env.NEXT_PUBLIC_2GIS_API_KEY;
++const SCRIPT_SRC = 'https://mapgl.2gis.com/api/js/v1';
++
++declare global {
++  interface Window {
++    mapgl?: any;
++  }
++}
++
++let scriptPromise: Promise<void> | null = null;
++function loadMapgl(): Promise<void> {
++  if (window.mapgl) return Promise.resolve();
++  if (scriptPromise) return scriptPromise;
++  scriptPromise = new Promise((resolve, reject) => {
++    const script = document.createElement('script');
++    script.src = SCRIPT_SRC;
++    script.async = true;
++    script.onload = () => resolve();
++    script.onerror = () => reject(new Error('mapgl failed to load'));
++    document.head.appendChild(script);
++  });
++  return scriptPromise;
++}
++
++type Props = {
++  citySlug: string;
++  lat: number | null;
++  lng: number | null;
++  onChange: (v: { lat: number; lng: number; address: string | null }) => void;
++};
++
++export function LocationPicker({ citySlug, lat, lng, onChange }: Props) {
++  const containerRef = useRef<HTMLDivElement>(null);
++  const mapRef = useRef<any>(null);
++  const markerRef = useRef<any>(null);
++  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
++
++  useEffect(() => {
++    if (!API_KEY || !containerRef.current) return;
++    let cancelled = false;
++    setStatus('loading');
++
++    (async () => {
++      try {
++        await loadMapgl();
++        if (cancelled || !containerRef.current) return;
++
++        const known = getKzCity(citySlug);
++        let center: [number, number] =
++          lng != null && lat != null ? [lng, lat] : known?.lng && known?.lat ? [known.lng, known.lat] : KZ_DEFAULT_CENTER;
++
++        if (!known?.lat && lat == null) {
++          const geo = await geocodeCity(known?.name ?? citySlug);
++          if (geo) center = [geo.lng, geo.lat];
++        }
++
++        const map = new window.mapgl.Map(containerRef.current, { center, zoom: 13, key: API_KEY });
++        mapRef.current = map;
++
++        if (lat != null && lng != null) {
++          markerRef.current = new window.mapgl.Marker(map, { coordinates: [lng, lat] });
++        }
++
++        map.on('click', async (e: any) => {
++          const [clickLng, clickLat] = e.lngLat;
++          markerRef.current?.destroy();
++          markerRef.current = new window.mapgl.Marker(map, { coordinates: [clickLng, clickLat] });
++          const address = await reverseGeocode(clickLat, clickLng);
++          onChange({ lat: clickLat, lng: clickLng, address });
++        });
++
++        setStatus('ready');
++      } catch {
++        setStatus('failed');
++      }
++    })();
++
++    return () => {
++      cancelled = true;
++      mapRef.current?.destroy?.();
++      mapRef.current = null;
++    };
++    // Карта пересоздаётся при смене города, чтобы центрироваться на нём заново
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [citySlug]);
++
++  if (!API_KEY) {
++    return (
++      <div className="rounded-2xl border border-dashed border-line bg-subtle p-5 text-[14px] text-muted">
++        Карта выбора адреса отключена — добавьте <code className="rounded bg-white px-1.5 py-0.5">NEXT_PUBLIC_2GIS_API_KEY</code> в
++        переменные окружения, чтобы соседи могли увидеть объявление на карте.
++      </div>
++    );
++  }
++
++  return (
++    <div>
++      <div className="h-[320px] overflow-hidden rounded-2xl border border-line">
++        <div ref={containerRef} className="h-full w-full" />
++      </div>
++      <p className="mt-2 text-[13px] text-muted">
++        {lat != null && lng != null
++          ? 'Точка сохранена. Кликните ещё раз, чтобы изменить.'
++          : status === 'ready'
++            ? 'Кликните на карте, чтобы отметить дом — это необязательно, но объявление появится на карте.'
++            : 'Загрузка карты…'}
++      </p>
++    </div>
++  );
++}
+diff --git a/src/lib/geocode2gis.ts b/src/lib/geocode2gis.ts
+new file mode 100644
+index 0000000..8768632
+--- /dev/null
++++ b/src/lib/geocode2gis.ts
+@@ -0,0 +1,45 @@
++// Геокодер 2ГИС — используется только на клиенте.
++// Нужен для центрирования карты на городах, для которых у нас нет
++// захардкоженных координат (см. src/lib/kzCities.ts), и для определения
++// адреса по клику на карте в форме объявления.
++
++const API_KEY = process.env.NEXT_PUBLIC_2GIS_API_KEY;
++
++export type GeocodeResult = { lat: number; lng: number; address: string } | null;
++
++export async function geocodeCity(cityName: string): Promise<GeocodeResult> {
++  if (!API_KEY) return null;
++  try {
++    const url = new URL('https://catalog.api.2gis.com/3.0/items/geocode');
++    url.searchParams.set('q', `Казахстан, ${cityName}`);
++    url.searchParams.set('fields', 'items.point');
++    url.searchParams.set('key', API_KEY);
++
++    const res = await fetch(url.toString());
++    const data = await res.json();
++    const point = data?.result?.items?.[0]?.point;
++    if (!point) return null;
++    return { lat: point.lat, lng: point.lon, address: cityName };
++  } catch {
++    return null;
++  }
++}
++
++// Обратный геокодинг: координаты -> человекочитаемый адрес (для формы объявления)
++export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
++  if (!API_KEY) return null;
++  try {
++    const url = new URL('https://catalog.api.2gis.com/3.0/items/geocode');
++    url.searchParams.set('lat', String(lat));
++    url.searchParams.set('lon', String(lng));
++    url.searchParams.set('fields', 'items.address_name,items.full_name');
++    url.searchParams.set('key', API_KEY);
++
++    const res = await fetch(url.toString());
++    const data = await res.json();
++    const item = data?.result?.items?.[0];
++    return item?.full_name ?? item?.address_name ?? null;
++  } catch {
++    return null;
++  }
++}
+diff --git a/src/lib/kzCities.ts b/src/lib/kzCities.ts
+new file mode 100644
+index 0000000..a0ba61d
+--- /dev/null
++++ b/src/lib/kzCities.ts
+@@ -0,0 +1,124 @@
++// Города Казахстана — справочник для селектора города и карты.
++// Координаты заданы только для крупных городов (мгновенное центрирование карты
++// без обращения к геокодеру). Для остальных городов центр карты определяется
++// на лету через геокодер 2ГИС (см. src/components/ListingsMap.tsx).
++
++export type KzCity = {
++  slug: string;
++  name: string;
++  region: string;
++  lat?: number;
++  lng?: number;
++};
++
++export const KZ_CITIES: KzCity[] = [
++  // Города республиканского значения
++  { slug: 'astana', name: 'Астана', region: 'Столица', lat: 51.1694, lng: 71.4491 },
++  { slug: 'almaty', name: 'Алматы', region: 'Город респ. значения', lat: 43.2389, lng: 76.8897 },
++  { slug: 'shymkent', name: 'Шымкент', region: 'Город респ. значения', lat: 42.3417, lng: 69.5901 },
++
++  // Областные центры
++  { slug: 'aktau', name: 'Актау', region: 'Мангистауская область', lat: 43.6511, lng: 51.1989 },
++  { slug: 'aktobe', name: 'Актобе', region: 'Актюбинская область', lat: 50.2839, lng: 57.1670 },
++  { slug: 'atyrau', name: 'Атырау', region: 'Атырауская область', lat: 47.1164, lng: 51.8830 },
++  { slug: 'karaganda', name: 'Караганда', region: 'Карагандинская область', lat: 49.8047, lng: 73.1094 },
++  { slug: 'kokshetau', name: 'Кокшетау', region: 'Акмолинская область', lat: 53.2833, lng: 69.3833 },
++  { slug: 'kostanay', name: 'Костанай', region: 'Костанайская область', lat: 53.2144, lng: 63.6246 },
++  { slug: 'kyzylorda', name: 'Кызылорда', region: 'Кызылординская область', lat: 44.8479, lng: 65.4999 },
++  { slug: 'pavlodar', name: 'Павлодар', region: 'Павлодарская область', lat: 52.2871, lng: 76.9674 },
++  { slug: 'petropavlovsk', name: 'Петропавловск', region: 'Северо-Казахстанская область', lat: 54.8756, lng: 69.1628 },
++  { slug: 'semey', name: 'Семей', region: 'Абайская область', lat: 50.4111, lng: 80.2275 },
++  { slug: 'taldykorgan', name: 'Талдыкорган', region: 'Жетысуская область', lat: 45.0161, lng: 78.3661 },
++  { slug: 'taraz', name: 'Тараз', region: 'Жамбылская область', lat: 42.9000, lng: 71.3667 },
++  { slug: 'turkestan', name: 'Туркестан', region: 'Туркестанская область', lat: 43.3017, lng: 68.2517 },
++  { slug: 'uralsk', name: 'Уральск', region: 'Западно-Казахстанская область', lat: 51.2333, lng: 51.3667 },
++  { slug: 'ust-kamenogorsk', name: 'Усть-Каменогорск', region: 'Восточно-Казахстанская область', lat: 49.9481, lng: 82.6275 },
++  { slug: 'konaev', name: 'Конаев', region: 'Алматинская область', lat: 43.8783, lng: 77.0644 },
++  { slug: 'zhezkazgan', name: 'Жезказган', region: 'Улытауская область', lat: 47.7833, lng: 67.7000 },
++
++  // Крупные и средние города областного подчинения
++  { slug: 'temirtau', name: 'Темиртау', region: 'Карагандинская область', lat: 50.0546, lng: 72.9646 },
++  { slug: 'ekibastuz', name: 'Экибастуз', region: 'Павлодарская область', lat: 51.7250, lng: 75.3250 },
++  { slug: 'rudny', name: 'Рудный', region: 'Костанайская область', lat: 52.9667, lng: 63.1167 },
++  { slug: 'zhanaozen', name: 'Жанаозен', region: 'Мангистауская область', lat: 43.3417, lng: 52.8608 },
++  { slug: 'baikonur', name: 'Байконур', region: 'Город респ. значения (РФ, аренда)', lat: 45.6180, lng: 63.3170 },
++  { slug: 'kaskelen', name: 'Каскелен', region: 'Алматинская область' },
++  { slug: 'koshi', name: 'Косшы', region: 'Акмолинская область' },
++  { slug: 'talgar', name: 'Талгар', region: 'Алматинская область' },
++  { slug: 'kapshagay', name: 'Капчагай', region: 'Алматинская область' },
++  { slug: 'zharkent', name: 'Жаркент', region: 'Алматинская область' },
++  { slug: 'tekeli', name: 'Текели', region: 'Алматинская область' },
++  { slug: 'ushtobe', name: 'Уштобе', region: 'Алматинская область' },
++  { slug: 'usharal', name: 'Ушарал', region: 'Алматинская область' },
++  { slug: 'sarkand', name: 'Сарканд', region: 'Алматинская область' },
++  { slug: 'esik', name: 'Есик', region: 'Алматинская область' },
++  { slug: 'balkhash', name: 'Балхаш', region: 'Карагандинская область' },
++  { slug: 'satpayev', name: 'Сатпаев', region: 'Карагандинская область' },
++  { slug: 'shakhtinsk', name: 'Шахтинск', region: 'Карагандинская область' },
++  { slug: 'saran', name: 'Сарань', region: 'Карагандинская область' },
++  { slug: 'priozersk', name: 'Приозёрск', region: 'Карагандинская область' },
++  { slug: 'karazhal', name: 'Каражал', region: 'Карагандинская область' },
++  { slug: 'karkaralinsk', name: 'Каркаралинск', region: 'Карагандинская область' },
++  { slug: 'abay', name: 'Абай', region: 'Карагандинская область' },
++  { slug: 'kentau', name: 'Кентау', region: 'Туркестанская область' },
++  { slug: 'saryagash', name: 'Сарыагаш', region: 'Туркестанская область' },
++  { slug: 'arys', name: 'Арыс', region: 'Туркестанская область' },
++  { slug: 'zhetysay', name: 'Жетысай', region: 'Туркестанская область' },
++  { slug: 'shardara', name: 'Шардара', region: 'Туркестанская область' },
++  { slug: 'lenger', name: 'Ленгер', region: 'Туркестанская область' },
++  { slug: 'shu', name: 'Шу', region: 'Жамбылская область' },
++  { slug: 'karatau', name: 'Каратау', region: 'Жамбылская область' },
++  { slug: 'zhanatas', name: 'Жанатас', region: 'Жамбылская область' },
++  { slug: 'aksay', name: 'Аксай', region: 'Западно-Казахстанская область' },
++  { slug: 'lisakovsk', name: 'Лисаковск', region: 'Костанайская область' },
++  { slug: 'zhitikara', name: 'Житикара', region: 'Костанайская область' },
++  { slug: 'arkalyk', name: 'Аркалык', region: 'Костанайская область' },
++  { slug: 'aralsk', name: 'Аральск', region: 'Кызылординская область' },
++  { slug: 'kazalinsk', name: 'Казалинск', region: 'Кызылординская область' },
++  { slug: 'fort-shevchenko', name: 'Форт-Шевченко', region: 'Мангистауская область' },
++  { slug: 'aksu', name: 'Аксу', region: 'Павлодарская область' },
++  { slug: 'kulsary', name: 'Кульсары', region: 'Атырауская область' },
++  { slug: 'stepnogorsk', name: 'Степногорск', region: 'Акмолинская область' },
++  { slug: 'shchuchinsk', name: 'Щучинск', region: 'Акмолинская область' },
++  { slug: 'atbasar', name: 'Атбасар', region: 'Акмолинская область' },
++  { slug: 'makinsk', name: 'Макинск', region: 'Акмолинская область' },
++  { slug: 'akkol', name: 'Акколь', region: 'Акмолинская область' },
++  { slug: 'yereymentau', name: 'Ерейментау', region: 'Акмолинская область' },
++  { slug: 'esil', name: 'Есиль', region: 'Акмолинская область' },
++  { slug: 'derzhavinsk', name: 'Державинск', region: 'Акмолинская область' },
++  { slug: 'stepnyak', name: 'Степняк', region: 'Акмолинская область' },
++  { slug: 'kandyagash', name: 'Кандыагаш', region: 'Актюбинская область' },
++  { slug: 'shalkar', name: 'Шалкар', region: 'Актюбинская область' },
++  { slug: 'khromtau', name: 'Хромтау', region: 'Актюбинская область' },
++  { slug: 'alga', name: 'Алга', region: 'Актюбинская область' },
++  { slug: 'emba', name: 'Эмба', region: 'Актюбинская область' },
++  { slug: 'temir', name: 'Темир', region: 'Актюбинская область' },
++  { slug: 'zhem', name: 'Жем', region: 'Актюбинская область' },
++  { slug: 'ridder', name: 'Риддер', region: 'Восточно-Казахстанская область' },
++  { slug: 'ayagoz', name: 'Аягоз', region: 'Абайская область' },
++  { slug: 'zyryanovsk', name: 'Зыряновск', region: 'Восточно-Казахстанская область' },
++  { slug: 'shemonaikha', name: 'Шемонаиха', region: 'Восточно-Казахстанская область' },
++  { slug: 'zaysan', name: 'Зайсан', region: 'Абайская область' },
++  { slug: 'kurchatov', name: 'Курчатов', region: 'Абайская область' },
++  { slug: 'serebryansk', name: 'Серебрянск', region: 'Восточно-Казахстанская область' },
++  { slug: 'charsk', name: 'Чарск', region: 'Абайская область' },
++  { slug: 'tayynsha', name: 'Тайынша', region: 'Северо-Казахстанская область' },
++  { slug: 'bulaevo', name: 'Булаево', region: 'Северо-Казахстанская область' },
++  { slug: 'sergeyevka', name: 'Сергеевка', region: 'Северо-Казахстанская область' },
++  { slug: 'mamlyutka', name: 'Мамлютка', region: 'Северо-Казахстанская область' }
++];
++
++export const KZ_CITIES_BY_REGION: Record<string, KzCity[]> = KZ_CITIES.reduce(
++  (acc, city) => {
++    (acc[city.region] ??= []).push(city);
++    return acc;
++  },
++  {} as Record<string, KzCity[]>
++);
++
++export function getKzCity(slug: string): KzCity | undefined {
++  return KZ_CITIES.find((c) => c.slug === slug);
++}
++
++// Дефолтный центр карты, если для города нет координат и геокодер ещё не ответил
++export const KZ_DEFAULT_CENTER: [number, number] = [66.9237, 48.0196]; // географический центр РК
+diff --git a/src/lib/validation.ts b/src/lib/validation.ts
+index 08df7c8..8c4f30e 100644
+--- a/src/lib/validation.ts
++++ b/src/lib/validation.ts
+@@ -8,9 +8,12 @@ export const listingSchema = z.object({
+   deposit: z.coerce.number().int().min(0).default(0),
+   housingType: z.enum(['SEPARATE_ROOM', 'SHARED_ROOM', 'BED_SPACE']),
+   rooms: z.coerce.number().int().min(1).max(10),
++  city: z.string().min(2).max(60).default('almaty'),
+   districtId: z.string().optional().nullable(),
+   metro: z.string().max(60).optional().nullable(),
+   address: z.string().max(200).optional().nullable(),
++  lat: z.coerce.number().min(-90).max(90).optional().nullable(),
++  lng: z.coerce.number().min(-180).max(180).optional().nullable(),
+   preferGender: z.enum(['MALE', 'FEMALE']).optional().nullable(),
+   minAge: z.coerce.number().int().min(16).max(90).optional().nullable(),
+   maxAge: z.coerce.number().int().min(16).max(90).optional().nullable(),

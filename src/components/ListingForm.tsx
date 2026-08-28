@@ -3,20 +3,49 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { KZ_CITIES_BY_REGION } from '@/lib/kzCities';
+import { LocationPicker } from '@/components/LocationPicker';
 
 const HABITS = ['не курю', 'курю на балконе', 'без животных', 'есть кот', 'тихий режим', 'ранние подъёмы', 'готовлю дома', 'без гостей'];
 const AMENITIES = ['wi-fi', 'стиральная машина', 'мебель', 'кондиционер', 'посудомойка', 'парковка', 'лифт', 'своя ванная'];
 
-export function ListingForm({ districts, initial }: { districts: { id: string; name: string }[]; initial?: any }) {
+export function ListingForm({
+  districts,
+  initial,
+  initialCity = 'almaty'
+}: {
+  districts: { id: string; name: string }[];
+  initial?: any;
+  initialCity?: string;
+}) {
   const router = useRouter();
   const [habits, setHabits] = useState<string[]>(initial?.habits ?? []);
   const [amenities, setAmenities] = useState<string[]>(initial?.amenities ?? []);
+  const [city, setCity] = useState(initial?.city ?? initialCity);
+  const [cityDistricts, setCityDistricts] = useState(districts);
+  const [location, setLocation] = useState<{ lat: number | null; lng: number | null; address: string | null }>({
+    lat: initial?.lat ?? null,
+    lng: initial?.lng ?? null,
+    address: initial?.address ?? null
+  });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+
+  async function onCityChange(next: string) {
+    setCity(next);
+    setLocation({ lat: null, lng: null, address: null });
+    try {
+      const res = await fetch(`/api/districts?city=${encodeURIComponent(next)}`);
+      const data = await res.json();
+      setCityDistricts(data.districts ?? []);
+    } catch {
+      setCityDistricts([]);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,7 +57,15 @@ export function ListingForm({ districts, initial }: { districts: { id: string; n
     const res = await fetch(initial ? `/api/listings/${initial.id}` : '/api/listings', {
       method: initial ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, habits, amenities })
+      body: JSON.stringify({
+        ...payload,
+        habits,
+        amenities,
+        city,
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address ?? payload.address
+      })
     });
     const data = await res.json();
     setLoading(false);
@@ -144,18 +181,60 @@ export function ListingForm({ districts, initial }: { districts: { id: string; n
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
-          <label className="label" htmlFor="districtId">Район</label>
-          <select id="districtId" name="districtId" className="field" defaultValue={initial?.districtId ?? ''}>
-            <option value="">Выберите район</option>
-            {districts.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
+          <label className="label" htmlFor="city">Город</label>
+          <select
+            id="city"
+            name="city"
+            className="field"
+            value={city}
+            onChange={(e) => onCityChange(e.target.value)}
+          >
+            {Object.entries(KZ_CITIES_BY_REGION).map(([region, cities]) => (
+              <optgroup key={region} label={region}>
+                {cities.map((c) => (
+                  <option key={c.slug} value={c.slug}>{c.name}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>
         <div>
+          <label className="label" htmlFor="districtId">Район</label>
+          <select id="districtId" name="districtId" className="field" defaultValue={initial?.districtId ?? ''}>
+            <option value="">Выберите район</option>
+            {cityDistricts.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
           <label className="label" htmlFor="metro">Ближайшее метро</label>
           <input id="metro" name="metro" className="field" placeholder="Алатау" defaultValue={initial?.metro ?? ''} />
         </div>
+        <div>
+          <label className="label" htmlFor="address">Адрес (необязательно)</label>
+          <input
+            id="address"
+            name="address"
+            className="field"
+            placeholder="Улица, дом"
+            value={location.address ?? ''}
+            onChange={(e) => setLocation((v) => ({ ...v, address: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Точка на карте</label>
+        <LocationPicker
+          citySlug={city}
+          lat={location.lat}
+          lng={location.lng}
+          onChange={(v) => setLocation(v)}
+        />
       </div>
 
       <Chips title="Привычки и правила" options={HABITS} selected={habits} onToggle={(v) => toggle(habits, setHabits, v)} />

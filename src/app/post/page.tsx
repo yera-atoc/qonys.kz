@@ -13,8 +13,11 @@ export default async function PostPage() {
   const me = await currentUser();
   if (!me) redirect('/login?callbackUrl=/post');
 
+  const myProfile = await prisma.user.findUnique({ where: { id: me.id }, select: { city: true } });
+  const initialCity = myProfile?.city ?? 'almaty';
+
   const [districts, activeCount, subscription, freeLimit] = await Promise.all([
-    prisma.district.findMany({ where: { city: 'almaty' }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    prisma.district.findMany({ where: { city: initialCity }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.listing.count({ where: { authorId: me.id, status: { in: ['ACTIVE', 'MODERATION'] } } }),
     prisma.subscription.findFirst({
       where: { userId: me.id, status: 'ACTIVE', endsAt: { gt: new Date() } },
@@ -54,7 +57,7 @@ export default async function PostPage() {
           </div>
         ) : (
           <div className="mt-10">
-            <ListingForm districts={districts} />
+            <ListingForm districts={districts} initialCity={initialCity} />
           </div>
         )}
       </main>

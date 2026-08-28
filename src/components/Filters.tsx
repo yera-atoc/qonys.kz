@@ -3,8 +3,9 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { tenge } from '@/lib/format';
+import { KZ_CITIES_BY_REGION } from '@/lib/kzCities';
 
-type Props = { districts: { id: string; name: string }[] };
+type Props = { districts: { id: string; name: string }[]; city: string };
 
 const KINDS = [
   { value: '', label: 'Все' },
@@ -12,7 +13,7 @@ const KINDS = [
   { value: 'SEEK_ROOMMATE', label: 'Ищут соседа' }
 ];
 
-export function Filters({ districts }: Props) {
+export function Filters({ districts, city }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -48,7 +49,26 @@ export function Filters({ districts }: Props) {
         ))}
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div>
+          <label className="label" htmlFor="f-city">Город</label>
+          <select
+            id="f-city"
+            className="field"
+            disabled={pending}
+            value={city}
+            onChange={(e) => apply({ city: e.target.value, district: '' })}
+          >
+            {Object.entries(KZ_CITIES_BY_REGION).map(([region, cities]) => (
+              <optgroup key={region} label={region}>
+                {cities.map((c) => (
+                  <option key={c.slug} value={c.slug}>{c.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
         <div>
           <label className="label" htmlFor="f-district">Район</label>
           <select
