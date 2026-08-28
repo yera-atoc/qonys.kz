@@ -2,12 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --shadow-line: #e4e0d7;
-}
-
 html {
   -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -28,7 +25,7 @@ body {
 
 @layer components {
   .container-q {
-    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+    @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6;
   }
 
   .card-q {
@@ -36,56 +33,40 @@ body {
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition
-           disabled:cursor-not-allowed disabled:opacity-50;
+    @apply relative inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-sm font-semibold transition-all duration-150 active:scale-[.97]
+           disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
   }
-  .btn-primary {
-    @apply btn bg-brand text-white hover:bg-brand-ink;
-  }
-  .btn-ghost {
-    @apply btn border border-line bg-card text-ink hover:border-brand hover:text-brand;
-  }
-  .btn-accent {
-    @apply btn bg-accent text-ink hover:brightness-95;
-  }
-  .btn-danger {
-    @apply btn bg-danger text-white hover:brightness-95;
-  }
+  .btn-primary { @apply btn bg-brand text-white hover:bg-brand-ink; }
+  .btn-ghost { @apply btn border border-line bg-card text-ink hover:border-brand hover:text-brand; }
+  .btn-accent { @apply btn bg-accent text-ink hover:brightness-95; }
+  .btn-danger { @apply btn bg-danger text-white hover:brightness-95; }
 
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2.5 py-1 text-xs text-muted;
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-paper px-2.5 py-1
+           text-[11px] font-medium leading-none text-muted;
   }
 
   .field {
-    @apply w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm text-ink
-           placeholder:text-muted/70 focus:border-brand focus:outline-none;
+    @apply w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm text-ink transition
+           placeholder:text-muted/60 focus:border-brand focus:outline-none;
   }
 
   .label {
-    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted;
+    @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted;
   }
 
   .eyebrow {
     @apply text-xs font-semibold uppercase tracking-[0.18em] text-brand;
   }
 
-  /* Ценовая рейка — фирменный элемент карточки объявления */
-  .price-rail {
-    @apply relative pl-4;
-  }
-  .price-rail::before {
-    content: '';
-    @apply absolute left-0 top-1 h-[calc(100%-8px)] w-[3px] rounded-full bg-brand;
-  }
-  .price-rail-top::before {
-    @apply bg-accent;
+  .skeleton {
+    @apply animate-pulse rounded-lg bg-line/60;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
