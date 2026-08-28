@@ -7,7 +7,7 @@ import type { Role } from '@prisma/client';
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt', maxAge: 60 * 60 * 24 * 30 },
-  pages: { signIn: '/login' },
+  pages: { signIn: '/login', error: '/login' },
   providers: [
     CredentialsProvider({
       name: 'Телефон и пароль',
