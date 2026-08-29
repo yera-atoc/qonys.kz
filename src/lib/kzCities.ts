@@ -1,124 +1,130 @@
-// Города Казахстана — справочник для селектора города и карты.
-// Координаты заданы только для крупных городов (мгновенное центрирование карты
-// без обращения к геокодеру). Для остальных городов центр карты определяется
-// на лету через геокодер 2ГИС (см. src/components/ListingsMap.tsx).
+// Города Qonys. Осознанно ограничены четырьмя городами: мы открываем город
+// только когда в нём есть районы, модерация и живые объявления. Пустой пункт
+// в списке городов стоит дороже, чем его отсутствие.
+//
+// Чтобы открыть новый город: добавить запись сюда → добавить районы попадут
+// в базу автоматически при `npm run db:seed`.
+
+import type { Locale } from './i18n/config';
+
+export type KzDistrict = {
+  slug: string; // city-scoped: almaty-bostandyk
+  ru: string;
+  kk: string;
+  en: string;
+};
 
 export type KzCity = {
   slug: string;
-  name: string;
-  region: string;
-  lat?: number;
-  lng?: number;
+  ru: string;
+  kk: string;
+  en: string;
+  lat: number;
+  lng: number;
+  zoom: number;
+  districts: KzDistrict[];
 };
 
 export const KZ_CITIES: KzCity[] = [
-  // Города республиканского значения
-  { slug: 'astana', name: 'Астана', region: 'Столица', lat: 51.1694, lng: 71.4491 },
-  { slug: 'almaty', name: 'Алматы', region: 'Город респ. значения', lat: 43.2389, lng: 76.8897 },
-  { slug: 'shymkent', name: 'Шымкент', region: 'Город респ. значения', lat: 42.3417, lng: 69.5901 },
-
-  // Областные центры
-  { slug: 'aktau', name: 'Актау', region: 'Мангистауская область', lat: 43.6511, lng: 51.1989 },
-  { slug: 'aktobe', name: 'Актобе', region: 'Актюбинская область', lat: 50.2839, lng: 57.1670 },
-  { slug: 'atyrau', name: 'Атырау', region: 'Атырауская область', lat: 47.1164, lng: 51.8830 },
-  { slug: 'karaganda', name: 'Караганда', region: 'Карагандинская область', lat: 49.8047, lng: 73.1094 },
-  { slug: 'kokshetau', name: 'Кокшетау', region: 'Акмолинская область', lat: 53.2833, lng: 69.3833 },
-  { slug: 'kostanay', name: 'Костанай', region: 'Костанайская область', lat: 53.2144, lng: 63.6246 },
-  { slug: 'kyzylorda', name: 'Кызылорда', region: 'Кызылординская область', lat: 44.8479, lng: 65.4999 },
-  { slug: 'pavlodar', name: 'Павлодар', region: 'Павлодарская область', lat: 52.2871, lng: 76.9674 },
-  { slug: 'petropavlovsk', name: 'Петропавловск', region: 'Северо-Казахстанская область', lat: 54.8756, lng: 69.1628 },
-  { slug: 'semey', name: 'Семей', region: 'Абайская область', lat: 50.4111, lng: 80.2275 },
-  { slug: 'taldykorgan', name: 'Талдыкорган', region: 'Жетысуская область', lat: 45.0161, lng: 78.3661 },
-  { slug: 'taraz', name: 'Тараз', region: 'Жамбылская область', lat: 42.9000, lng: 71.3667 },
-  { slug: 'turkestan', name: 'Туркестан', region: 'Туркестанская область', lat: 43.3017, lng: 68.2517 },
-  { slug: 'uralsk', name: 'Уральск', region: 'Западно-Казахстанская область', lat: 51.2333, lng: 51.3667 },
-  { slug: 'ust-kamenogorsk', name: 'Усть-Каменогорск', region: 'Восточно-Казахстанская область', lat: 49.9481, lng: 82.6275 },
-  { slug: 'konaev', name: 'Конаев', region: 'Алматинская область', lat: 43.8783, lng: 77.0644 },
-  { slug: 'zhezkazgan', name: 'Жезказган', region: 'Улытауская область', lat: 47.7833, lng: 67.7000 },
-
-  // Крупные и средние города областного подчинения
-  { slug: 'temirtau', name: 'Темиртау', region: 'Карагандинская область', lat: 50.0546, lng: 72.9646 },
-  { slug: 'ekibastuz', name: 'Экибастуз', region: 'Павлодарская область', lat: 51.7250, lng: 75.3250 },
-  { slug: 'rudny', name: 'Рудный', region: 'Костанайская область', lat: 52.9667, lng: 63.1167 },
-  { slug: 'zhanaozen', name: 'Жанаозен', region: 'Мангистауская область', lat: 43.3417, lng: 52.8608 },
-  { slug: 'baikonur', name: 'Байконур', region: 'Город респ. значения (РФ, аренда)', lat: 45.6180, lng: 63.3170 },
-  { slug: 'kaskelen', name: 'Каскелен', region: 'Алматинская область' },
-  { slug: 'koshi', name: 'Косшы', region: 'Акмолинская область' },
-  { slug: 'talgar', name: 'Талгар', region: 'Алматинская область' },
-  { slug: 'kapshagay', name: 'Капчагай', region: 'Алматинская область' },
-  { slug: 'zharkent', name: 'Жаркент', region: 'Алматинская область' },
-  { slug: 'tekeli', name: 'Текели', region: 'Алматинская область' },
-  { slug: 'ushtobe', name: 'Уштобе', region: 'Алматинская область' },
-  { slug: 'usharal', name: 'Ушарал', region: 'Алматинская область' },
-  { slug: 'sarkand', name: 'Сарканд', region: 'Алматинская область' },
-  { slug: 'esik', name: 'Есик', region: 'Алматинская область' },
-  { slug: 'balkhash', name: 'Балхаш', region: 'Карагандинская область' },
-  { slug: 'satpayev', name: 'Сатпаев', region: 'Карагандинская область' },
-  { slug: 'shakhtinsk', name: 'Шахтинск', region: 'Карагандинская область' },
-  { slug: 'saran', name: 'Сарань', region: 'Карагандинская область' },
-  { slug: 'priozersk', name: 'Приозёрск', region: 'Карагандинская область' },
-  { slug: 'karazhal', name: 'Каражал', region: 'Карагандинская область' },
-  { slug: 'karkaralinsk', name: 'Каркаралинск', region: 'Карагандинская область' },
-  { slug: 'abay', name: 'Абай', region: 'Карагандинская область' },
-  { slug: 'kentau', name: 'Кентау', region: 'Туркестанская область' },
-  { slug: 'saryagash', name: 'Сарыагаш', region: 'Туркестанская область' },
-  { slug: 'arys', name: 'Арыс', region: 'Туркестанская область' },
-  { slug: 'zhetysay', name: 'Жетысай', region: 'Туркестанская область' },
-  { slug: 'shardara', name: 'Шардара', region: 'Туркестанская область' },
-  { slug: 'lenger', name: 'Ленгер', region: 'Туркестанская область' },
-  { slug: 'shu', name: 'Шу', region: 'Жамбылская область' },
-  { slug: 'karatau', name: 'Каратау', region: 'Жамбылская область' },
-  { slug: 'zhanatas', name: 'Жанатас', region: 'Жамбылская область' },
-  { slug: 'aksay', name: 'Аксай', region: 'Западно-Казахстанская область' },
-  { slug: 'lisakovsk', name: 'Лисаковск', region: 'Костанайская область' },
-  { slug: 'zhitikara', name: 'Житикара', region: 'Костанайская область' },
-  { slug: 'arkalyk', name: 'Аркалык', region: 'Костанайская область' },
-  { slug: 'aralsk', name: 'Аральск', region: 'Кызылординская область' },
-  { slug: 'kazalinsk', name: 'Казалинск', region: 'Кызылординская область' },
-  { slug: 'fort-shevchenko', name: 'Форт-Шевченко', region: 'Мангистауская область' },
-  { slug: 'aksu', name: 'Аксу', region: 'Павлодарская область' },
-  { slug: 'kulsary', name: 'Кульсары', region: 'Атырауская область' },
-  { slug: 'stepnogorsk', name: 'Степногорск', region: 'Акмолинская область' },
-  { slug: 'shchuchinsk', name: 'Щучинск', region: 'Акмолинская область' },
-  { slug: 'atbasar', name: 'Атбасар', region: 'Акмолинская область' },
-  { slug: 'makinsk', name: 'Макинск', region: 'Акмолинская область' },
-  { slug: 'akkol', name: 'Акколь', region: 'Акмолинская область' },
-  { slug: 'yereymentau', name: 'Ерейментау', region: 'Акмолинская область' },
-  { slug: 'esil', name: 'Есиль', region: 'Акмолинская область' },
-  { slug: 'derzhavinsk', name: 'Державинск', region: 'Акмолинская область' },
-  { slug: 'stepnyak', name: 'Степняк', region: 'Акмолинская область' },
-  { slug: 'kandyagash', name: 'Кандыагаш', region: 'Актюбинская область' },
-  { slug: 'shalkar', name: 'Шалкар', region: 'Актюбинская область' },
-  { slug: 'khromtau', name: 'Хромтау', region: 'Актюбинская область' },
-  { slug: 'alga', name: 'Алга', region: 'Актюбинская область' },
-  { slug: 'emba', name: 'Эмба', region: 'Актюбинская область' },
-  { slug: 'temir', name: 'Темир', region: 'Актюбинская область' },
-  { slug: 'zhem', name: 'Жем', region: 'Актюбинская область' },
-  { slug: 'ridder', name: 'Риддер', region: 'Восточно-Казахстанская область' },
-  { slug: 'ayagoz', name: 'Аягоз', region: 'Абайская область' },
-  { slug: 'zyryanovsk', name: 'Зыряновск', region: 'Восточно-Казахстанская область' },
-  { slug: 'shemonaikha', name: 'Шемонаиха', region: 'Восточно-Казахстанская область' },
-  { slug: 'zaysan', name: 'Зайсан', region: 'Абайская область' },
-  { slug: 'kurchatov', name: 'Курчатов', region: 'Абайская область' },
-  { slug: 'serebryansk', name: 'Серебрянск', region: 'Восточно-Казахстанская область' },
-  { slug: 'charsk', name: 'Чарск', region: 'Абайская область' },
-  { slug: 'tayynsha', name: 'Тайынша', region: 'Северо-Казахстанская область' },
-  { slug: 'bulaevo', name: 'Булаево', region: 'Северо-Казахстанская область' },
-  { slug: 'sergeyevka', name: 'Сергеевка', region: 'Северо-Казахстанская область' },
-  { slug: 'mamlyutka', name: 'Мамлютка', region: 'Северо-Казахстанская область' }
+  {
+    slug: 'astana',
+    ru: 'Астана',
+    kk: 'Астана',
+    en: 'Astana',
+    lat: 51.1694,
+    lng: 71.4491,
+    zoom: 11,
+    districts: [
+      { slug: 'astana-esil', ru: 'Есильский', kk: 'Есіл ауданы', en: 'Esil' },
+      { slug: 'astana-almaty', ru: 'Алматинский', kk: 'Алматы ауданы', en: 'Almaty' },
+      { slug: 'astana-saryarka', ru: 'Сарыаркинский', kk: 'Сарыарқа ауданы', en: 'Saryarka' },
+      { slug: 'astana-baikonyr', ru: 'Байконурский', kk: 'Байқоңыр ауданы', en: 'Baikonyr' },
+      { slug: 'astana-nura', ru: 'Нуринский', kk: 'Нұра ауданы', en: 'Nura' }
+    ]
+  },
+  {
+    slug: 'almaty',
+    ru: 'Алматы',
+    kk: 'Алматы',
+    en: 'Almaty',
+    lat: 43.2389,
+    lng: 76.8897,
+    zoom: 11,
+    districts: [
+      { slug: 'almaty-bostandyk', ru: 'Бостандыкский', kk: 'Бостандық ауданы', en: 'Bostandyk' },
+      { slug: 'almaty-medeu', ru: 'Медеуский', kk: 'Медеу ауданы', en: 'Medeu' },
+      { slug: 'almaty-almaly', ru: 'Алмалинский', kk: 'Алмалы ауданы', en: 'Almaly' },
+      { slug: 'almaty-auezov', ru: 'Ауэзовский', kk: 'Әуезов ауданы', en: 'Auezov' },
+      { slug: 'almaty-nauryzbay', ru: 'Наурызбайский', kk: 'Наурызбай ауданы', en: 'Nauryzbay' },
+      { slug: 'almaty-alatau', ru: 'Алатауский', kk: 'Алатау ауданы', en: 'Alatau' },
+      { slug: 'almaty-turksib', ru: 'Турксибский', kk: 'Түрксіб ауданы', en: 'Turksib' },
+      { slug: 'almaty-zhetysu', ru: 'Жетысуский', kk: 'Жетісу ауданы', en: 'Zhetysu' }
+    ]
+  },
+  {
+    slug: 'shymkent',
+    ru: 'Шымкент',
+    kk: 'Шымкент',
+    en: 'Shymkent',
+    lat: 42.3417,
+    lng: 69.5901,
+    zoom: 11,
+    districts: [
+      { slug: 'shymkent-al-farabi', ru: 'Аль-Фарабийский', kk: 'Әл-Фараби ауданы', en: 'Al-Farabi' },
+      { slug: 'shymkent-abay', ru: 'Абайский', kk: 'Абай ауданы', en: 'Abay' },
+      { slug: 'shymkent-yenbekshi', ru: 'Енбекшинский', kk: 'Еңбекші ауданы', en: 'Yenbekshi' },
+      { slug: 'shymkent-karatau', ru: 'Каратауский', kk: 'Қаратау ауданы', en: 'Karatau' },
+      { slug: 'shymkent-turan', ru: 'Туранский', kk: 'Тұран ауданы', en: 'Turan' }
+    ]
+  },
+  {
+    slug: 'karaganda',
+    ru: 'Караганда',
+    kk: 'Қарағанды',
+    en: 'Karaganda',
+    lat: 49.8047,
+    lng: 73.1094,
+    zoom: 11,
+    districts: [
+      { slug: 'karaganda-kazybek-bi', ru: 'Казыбекбийский', kk: 'Қазыбек би ауданы', en: 'Kazybek Bi' },
+      { slug: 'karaganda-oktyabrsky', ru: 'Октябрьский', kk: 'Октябрь ауданы', en: 'Oktyabrsky' },
+      { slug: 'karaganda-maykuduk', ru: 'Майкудук', kk: 'Майқұдық', en: 'Maykuduk' },
+      { slug: 'karaganda-yugo-vostok', ru: 'Юго-Восток', kk: 'Оңтүстік-Шығыс', en: 'Yugo-Vostok' },
+      { slug: 'karaganda-prishakhtinsk', ru: 'Пришахтинск', kk: 'Пришахтинск', en: 'Prishakhtinsk' }
+    ]
+  }
 ];
 
-export const KZ_CITIES_BY_REGION: Record<string, KzCity[]> = KZ_CITIES.reduce(
-  (acc, city) => {
-    (acc[city.region] ??= []).push(city);
-    return acc;
-  },
-  {} as Record<string, KzCity[]>
-);
+export const CITY_SLUGS = KZ_CITIES.map((c) => c.slug);
+export const DEFAULT_CITY = 'almaty';
 
-export function getKzCity(slug: string): KzCity | undefined {
+export function getKzCity(slug: string | null | undefined): KzCity | undefined {
   return KZ_CITIES.find((c) => c.slug === slug);
 }
 
-// Дефолтный центр карты, если для города нет координат и геокодер ещё не ответил
-export const KZ_DEFAULT_CENTER: [number, number] = [66.9237, 48.0196]; // географический центр РК
+export function isKnownCity(slug: string | null | undefined): boolean {
+  return Boolean(slug && CITY_SLUGS.includes(slug));
+}
+
+/** Название города на языке интерфейса */
+export function cityName(slug: string | null | undefined, locale: Locale): string {
+  const city = getKzCity(slug);
+  return city ? city[locale] : '';
+}
+
+/** Все районы всех городов — источник правды для сида и валидации */
+export const ALL_DISTRICTS = KZ_CITIES.flatMap((city) =>
+  city.districts.map((d, i) => ({ ...d, city: city.slug, sort: i }))
+);
+
+export function districtName(
+  district: { name: string; nameKk?: string | null; nameEn?: string | null } | null | undefined,
+  locale: Locale
+): string {
+  if (!district) return '';
+  if (locale === 'kk') return district.nameKk || district.name;
+  if (locale === 'en') return district.nameEn || district.name;
+  return district.name;
+}
+
+export const KZ_DEFAULT_CENTER: [number, number] = [76.8897, 43.2389]; // Алматы

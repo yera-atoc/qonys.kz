@@ -20,6 +20,12 @@ enum Role {
   ADMIN // полный доступ
 }
 
+enum Locale {
+  KK // қазақша
+  RU // русский
+  EN // english
+}
+
 enum UserStatus {
   ACTIVE
   BLOCKED
@@ -41,6 +47,7 @@ model User {
   occupation   Occupation?
   about        String?
   phoneVerified Boolean   @default(false)
+  locale       Locale     @default(RU) // язык интерфейса
   lastSeenAt   DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -56,6 +63,7 @@ model User {
   sentMessages  Message[]
   threadsA      Thread[]      @relation("ThreadUserA")
   threadsB      Thread[]      @relation("ThreadUserB")
+  assignedThreads Thread[]    @relation("ThreadAssignee") // поддержка: тикеты на модераторе
 
   @@index([role, status])
   @@index([city])
@@ -96,13 +104,17 @@ enum ListingStatus {
 }
 
 model District {
-  id      String    @id @default(cuid())
-  city    String    @default("almaty")
-  name    String // Бостандыкский
-  slug    String    @unique
+  id       String    @id @default(cuid())
+  city     String    @default("almaty")
+  name     String // Бостандыкский — русское название, дефолт
+  nameKk   String? // Бостандық ауданы
+  nameEn   String? // Bostandyk
+  slug     String    @unique // city-scoped: almaty-bostandyk, astana-esil
+  sort     Int       @default(0)
   listings Listing[]
 
   @@unique([city, name])
+  @@index([city, sort])
 }
 
 model Listing {
@@ -325,31 +337,70 @@ model Payment {
 
 // ─────────────────────────── Общение и модерация ───────────────────────────
 
-model Thread {
-  id        String    @id @default(cuid())
-  listingId String
-  listing   Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  userAId   String
-  userA     User      @relation("ThreadUserA", fields: [userAId], references: [id], onDelete: Cascade)
-  userBId   String
-  userB     User      @relation("ThreadUserB", fields: [userBId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
-  messages  Message[]
+// Диалоги: между пользователями по объявлению и с поддержкой (модератором)
+enum ThreadKind {
+  LISTING // жилец ↔ автор объявления
+  SUPPORT // пользователь ↔ модератор
+}
 
+enum ThreadStatus {
+  OPEN // ждёт ответа
+  ANSWERED // поддержка ответила
+  CLOSED // закрыт
+}
+
+model Thread {
+  id        String       @id @default(cuid())
+  kind      ThreadKind   @default(LISTING)
+  status    ThreadStatus @default(OPEN)
+
+  listingId String? // null для тикетов поддержки
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  // userA — всегда инициатор диалога
+  userAId String
+  userA   User   @relation("ThreadUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  // userB — автор объявления; для SUPPORT остаётся null (адресат — вся смена поддержки)
+  userBId String?
+  userB   User?   @relation("ThreadUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  // Модератор, взявший тикет в работу
+  assigneeId String?
+  assignee   User?   @relation("ThreadAssignee", fields: [assigneeId], references: [id])
+
+  subject       String? // тема обращения в поддержку
+  lastMessageAt DateTime  @default(now())
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  messages Message[]
+
+  // Один диалог на пару «объявление + собеседник».
+  // В Postgres NULL-значения не конфликтуют, поэтому тикеты поддержки
+  // сюда не попадают — их единственность обеспечивает src/lib/chat.ts
   @@unique([listingId, userAId, userBId])
+  @@index([kind, status, lastMessageAt])
+  @@index([userAId, lastMessageAt])
+  @@index([userBId, lastMessageAt])
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  threadId  String
-  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  senderId  String
-  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  body      String
+  id       String  @id @default(cuid())
+  threadId String
+  thread   Thread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId String?
+  sender   User?   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  body     String
+  isSystem Boolean @default(false) // служебные сообщения: тикет закрыт, объявление снято
+  flagged  Boolean @default(false) // сработал антифрод-фильтр (предоплата, увод в мессенджер)
+
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([threadId, createdAt])
+  @@index([threadId, readAt])
+  @@index([flagged, createdAt])
 }
 
 enum ComplaintStatus {

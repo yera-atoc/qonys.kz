@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { reverseGeocode, geocodeCity } from '@/lib/geocode2gis';
+import { reverseGeocode } from '@/lib/geocode2gis';
 import { KZ_DEFAULT_CENTER, getKzCity } from '@/lib/kzCities';
 
 const API_KEY = process.env.NEXT_PUBLIC_2GIS_API_KEY;
@@ -52,13 +52,8 @@ export function LocationPicker({ citySlug, lat, lng, onChange }: Props) {
         if (cancelled || !containerRef.current) return;
 
         const known = getKzCity(citySlug);
-        let center: [number, number] =
-          lng != null && lat != null ? [lng, lat] : known?.lng && known?.lat ? [known.lng, known.lat] : KZ_DEFAULT_CENTER;
-
-        if (!known?.lat && lat == null) {
-          const geo = await geocodeCity(known?.name ?? citySlug);
-          if (geo) center = [geo.lng, geo.lat];
-        }
+        const center: [number, number] =
+          lng != null && lat != null ? [lng, lat] : known ? [known.lng, known.lat] : KZ_DEFAULT_CENTER;
 
         const map = new window.mapgl.Map(containerRef.current, { center, zoom: 13, key: API_KEY });
         mapRef.current = map;

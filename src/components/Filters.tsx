@@ -3,17 +3,20 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { tenge } from '@/lib/format';
-import { KZ_CITIES_BY_REGION } from '@/lib/kzCities';
+import { districtName } from '@/lib/kzCities';
+import { CitySelect } from './CitySelect';
+import { useI18n } from './I18nProvider';
 
-type Props = { districts: { id: string; name: string }[]; city: string };
-
-const KINDS = [
-  { value: '', label: 'Все' },
-  { value: 'OFFER_ROOM', label: 'Сдают комнату' },
-  { value: 'SEEK_ROOMMATE', label: 'Ищут соседа' }
-];
+export type DistrictOption = { id: string; name: string; nameKk: string | null; nameEn: string | null };
+type Props = { districts: DistrictOption[]; city: string };
 
 export function Filters({ districts, city }: Props) {
+  const { locale, t } = useI18n();
+  const KINDS = [
+    { value: '', label: t.filters.all },
+    { value: 'OFFER_ROOM', label: t.filters.offer },
+    { value: 'SEEK_ROOMMATE', label: t.filters.seek }
+  ];
   const router = useRouter();
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -51,26 +54,17 @@ export function Filters({ districts, city }: Props) {
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div>
-          <label className="label" htmlFor="f-city">Город</label>
-          <select
+          <label className="label" htmlFor="f-city">{t.filters.city}</label>
+          <CitySelect
             id="f-city"
-            className="field"
-            disabled={pending}
             value={city}
-            onChange={(e) => apply({ city: e.target.value, district: '' })}
-          >
-            {Object.entries(KZ_CITIES_BY_REGION).map(([region, cities]) => (
-              <optgroup key={region} label={region}>
-                {cities.map((c) => (
-                  <option key={c.slug} value={c.slug}>{c.name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            disabled={pending}
+            onChange={(slug) => apply({ city: slug, district: '' })}
+          />
         </div>
 
         <div>
-          <label className="label" htmlFor="f-district">Район</label>
+          <label className="label" htmlFor="f-district">{t.filters.district}</label>
           <select
             id="f-district"
             className="field"
@@ -78,15 +72,17 @@ export function Filters({ districts, city }: Props) {
             defaultValue={params.get('district') ?? ''}
             onChange={(e) => apply({ district: e.target.value })}
           >
-            <option value="">Любой район</option>
+            <option value="">{t.filters.anyDistrict}</option>
             {districts.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
+              <option key={d.id} value={d.id}>
+                {districtName(d, locale)}
+              </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="label" htmlFor="f-type">Тип жилья</label>
+          <label className="label" htmlFor="f-type">{t.filters.housing}</label>
           <select
             id="f-type"
             className="field"

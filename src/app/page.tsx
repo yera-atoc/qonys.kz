@@ -5,7 +5,9 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Filters } from '@/components/Filters';
 import { FeedView } from '@/components/FeedView';
-import { getKzCity } from '@/lib/kzCities';
+import { getKzCity, DEFAULT_CITY, KZ_CITIES, cityName } from '@/lib/kzCities';
+import { getT } from '@/lib/i18n/server';
+import { LOCALE_META } from '@/lib/i18n';
 import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +15,8 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Record<string, string | undefined>;
 
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
-  const city = getKzCity(searchParams.city ?? '')?.slug ?? 'almaty';
-  const cityInfo = getKzCity(city);
+  const { locale, t } = getT();
+  const city = getKzCity(searchParams.city ?? '')?.slug ?? DEFAULT_CITY;
 
   const where: Prisma.ListingWhereInput = { status: 'ACTIVE', city };
 
@@ -27,8 +29,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const [districts, listings, total] = await Promise.all([
     prisma.district.findMany({
       where: { city },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true }
+      orderBy: { sort: 'asc' },
+      select: { id: true, name: true, nameKk: true, nameEn: true }
     }),
     prisma.listing.findMany({
       where,
@@ -37,7 +39,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       select: {
         id: true, kind: true, title: true, price: true, rooms: true, metro: true,
         housingType: true, bumpedAt: true, lat: true, lng: true,
-        district: { select: { name: true } },
+        district: { select: { name: true, nameKk: true, nameEn: true } },
         author: { select: { name: true, birthYear: true, occupation: true } },
         photos: { select: { url: true }, orderBy: { sort: 'asc' }, take: 1 },
         promotions: { where: { isActive: true, endsAt: { gt: new Date() } }, select: { type: true } }
@@ -45,6 +47,8 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     }),
     prisma.listing.count({ where: { status: 'ACTIVE', city } })
   ]);
+
+  const totalDistricts = KZ_CITIES.reduce((sum, c) => sum + c.districts.length, 0);
 
   const cards = listings.map((l) => ({
     id: l.id,
@@ -78,36 +82,39 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         {/* Герой с мятным градиентом */}
         <section className="relative overflow-hidden bg-gradient-to-b from-[#EDF6EF] via-[#F6FAF7] to-white">
           <div className="container-q relative py-16 sm:py-24">
-            <span className="pill pill-dot animate-rise">Работает по всему Казахстану · {cityInfo?.name ?? 'Алматы'}</span>
+            {/* Города перечислены явно: обещаем ровно то, что открыто */}
+            <span className="pill pill-dot animate-rise">
+              {KZ_CITIES.map((c) => c[locale]).join(' · ')}
+            </span>
 
             <h1 className="mt-8 max-w-4xl font-display text-[42px] font-extrabold leading-[1.04] tracking-[-0.03em] sm:text-[64px] lg:text-[76px]">
-              Подселение, которое находит соседа за один день.
+              {t.home.title}
             </h1>
 
             <p className="mt-7 max-w-2xl text-[17px] leading-relaxed text-muted sm:text-[19px]">
-              Qonys соединяет тех, кто ищет комнату, и тех, кто ищет соседа, в любом городе Казахстана. Прозрачные
-              анкеты, фильтры по привычкам и району, карта объявлений — без бесконечного скролла по чатам.
+              {t.home.subtitle}
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/post" className="btn-primary">Разместить объявление</Link>
-              <Link href="#feed" className="btn-ghost">Смотреть ленту</Link>
+              <Link href="/post" className="btn-primary">{t.home.ctaPost}</Link>
+              <Link href="#feed" className="btn-ghost">{t.home.ctaFeed}</Link>
             </div>
 
             <dl className="mt-16 flex flex-wrap gap-x-16 gap-y-8">
-              <Stat value={`${total.toLocaleString('ru-RU')}+`} label={`анкет в городе ${cityInfo?.name ?? 'Алматы'}`} />
-              <Stat value={String(districts.length || '—')} label="районов на карте" />
-              <Stat value="24 ч" label="до первого ответа" />
+              <Stat
+                value={total.toLocaleString(LOCALE_META[locale].intl)}
+                label={`${t.home.statListings} · ${cityName(city, locale)}`}
+              />
+              <Stat value={String(totalDistricts || '—')} label={t.home.statDistricts} />
+              <Stat value="24 ч" label={t.home.statReply} />
             </dl>
           </div>
         </section>
 
         {/* Лента */}
         <section id="feed" className="container-q scroll-mt-24 py-14">
-          <h2 className="font-display text-[32px] font-extrabold tracking-tight">Лента</h2>
-          <p className="mt-2 text-[15px] text-muted">
-            Найдено {cards.length} {plural(cards.length, 'объявление', 'объявления', 'объявлений')} по вашим критериям
-          </p>
+          <h2 className="font-display text-[32px] font-extrabold tracking-tight">{t.feed.title}</h2>
+          <p className="mt-2 text-[15px] text-muted">{t.feed.found(cards.length)}</p>
 
           <div className="mt-8">
             <Suspense fallback={<div className="h-32" />}>
@@ -123,12 +130,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         {/* Как это работает */}
         <section className="border-t border-line bg-subtle">
           <div className="container-q py-16">
-            <h2 className="font-display text-[32px] font-extrabold tracking-tight">Как это работает</h2>
+            <h2 className="font-display text-[32px] font-extrabold tracking-tight">{t.home.howTitle}</h2>
             <ol className="mt-10 grid gap-10 sm:grid-cols-3">
               {[
-                ['01', 'Заполни анкету', 'Расскажи, кого ищешь: район, бюджет, привычки. Чем точнее — тем меньше пустых переписок.'],
-                ['02', 'Смотри подходящих', 'Лента подбирает анкеты под твои критерии. Видно профессию, расписание, привычки.'],
-                ['03', 'Договаривайся в чате', 'Пиши напрямую, договаривайся о просмотре. Контакты скрыты до твоего согласия.']
+                ['01', t.home.step1Title, t.home.step1Text],
+                ['02', t.home.step2Title, t.home.step2Text],
+                ['03', t.home.step3Title, t.home.step3Text]
               ].map(([n, title, text]) => (
                 <li key={n}>
                   <span className="font-display text-[15px] font-bold text-muted">{n}</span>
@@ -153,12 +160,4 @@ function Stat({ value, label }: { value: string; label: string }) {
       <dd className="mt-2 text-[15px] text-muted">{label}</dd>
     </div>
   );
-}
-
-function plural(n: number, one: string, few: string, many: string) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
-  return many;
 }
