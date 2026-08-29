@@ -1,23 +1,17 @@
 import { PrismaClient, Role, ListingKind, HousingType, ListingStatus, Gender, Occupation, PromoType, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { ALL_DISTRICTS, KZ_CITIES } from '../src/lib/kzCities';
 
 const prisma = new PrismaClient();
 
-const DISTRICTS = [
-  'Бостандыкский', 'Медеуский', 'Алмалинский', 'Ауэзовский',
-  'Наурызбайский', 'Алатауский', 'Турксибский', 'Жетысуский'
-];
-
-const slugify = (s: string) =>
-  s.toLowerCase().replace(/ский$/, '').replace(/[^a-zа-я0-9]+/gi, '-');
-
 async function main() {
-  // Районы Алматы
-  for (const name of DISTRICTS) {
+  // Районы четырёх городов. Источник правды — src/lib/kzCities.ts,
+  // чтобы список в селекторе и список в базе не могли разъехаться.
+  for (const d of ALL_DISTRICTS) {
     await prisma.district.upsert({
-      where: { slug: slugify(name) },
-      update: {},
-      create: { name, slug: slugify(name), city: 'almaty' }
+      where: { slug: d.slug },
+      update: { name: d.ru, nameKk: d.kk, nameEn: d.en, city: d.city, sort: d.sort },
+      create: { slug: d.slug, name: d.ru, nameKk: d.kk, nameEn: d.en, city: d.city, sort: d.sort }
     });
   }
 
@@ -76,14 +70,14 @@ async function main() {
 
   // Демо-пользователи и объявления (из ленты Qonys)
   const demo = [
-    { name: 'Айгерим', age: 24, gender: Gender.FEMALE, occ: Occupation.WORKING, kind: ListingKind.OFFER_ROOM, title: 'Отдельная комната в 2-комн., тихий двор', price: 95000, type: HousingType.SEPARATE_ROOM, rooms: 2, district: 'Бостандыкский', metro: 'Алатау' },
-    { name: 'Данияр', age: 22, gender: Gender.MALE, occ: Occupation.STUDENT, kind: ListingKind.SEEK_ROOMMATE, title: 'Ищу соседа в 2-комн., Самал, бюджет до 120к', price: 110000, type: HousingType.SEPARATE_ROOM, rooms: 2, district: 'Медеуский', metro: null },
-    { name: 'Аружан', age: 20, gender: Gender.FEMALE, occ: Occupation.STUDENT, kind: ListingKind.OFFER_ROOM, title: 'Койко-место в комнате, рядом с университетом', price: 45000, type: HousingType.BED_SPACE, rooms: 1, district: 'Алмалинский', metro: 'Абая' },
-    { name: 'Ержан', age: 26, gender: Gender.MALE, occ: Occupation.WORKING, kind: ListingKind.SEEK_ROOMMATE, title: 'Айтишник 26 лет ищет соседа в 3-комн.', price: 130000, type: HousingType.SEPARATE_ROOM, rooms: 3, district: 'Ауэзовский', metro: 'Сайран' },
-    { name: 'Мадина', age: 29, gender: Gender.FEMALE, occ: Occupation.WORKING, kind: ListingKind.OFFER_ROOM, title: 'Комната в новом ЖК, мебель новая', price: 150000, type: HousingType.SEPARATE_ROOM, rooms: 3, district: 'Бостандыкский', metro: 'Байконур' },
-    { name: 'Жанель', age: 23, gender: Gender.FEMALE, occ: Occupation.WORKING, kind: ListingKind.SEEK_ROOMMATE, title: 'Ищу спокойную соседку, делим аренду пополам', price: 80000, type: HousingType.SHARED_ROOM, rooms: 2, district: 'Медеуский', metro: null },
-    { name: 'Бекзат', age: 31, gender: Gender.MALE, occ: Occupation.WORKING, kind: ListingKind.OFFER_ROOM, title: 'Уютная комната в районе Орбита-3', price: 70000, type: HousingType.SEPARATE_ROOM, rooms: 2, district: 'Ауэзовский', metro: 'Алатау' },
-    { name: 'Алишер', age: 19, gender: Gender.MALE, occ: Occupation.STUDENT, kind: ListingKind.SEEK_ROOMMATE, title: 'Двое студентов ищут третьего в 3-комн.', price: 60000, type: HousingType.BED_SPACE, rooms: 3, district: 'Алмалинский', metro: 'Жибек Жолы' }
+    { name: 'Айгерим', age: 24, gender: Gender.FEMALE, occ: Occupation.WORKING, kind: ListingKind.OFFER_ROOM, title: 'Отдельная комната в 2-комн., тихий двор', price: 95000, type: HousingType.SEPARATE_ROOM, rooms: 2, district: 'almaty-bostandyk', metro: 'Алатау' },
+    { name: 'Данияр', age: 22, gender: Gender.MALE, occ: Occupation.STUDENT, kind: ListingKind.SEEK_ROOMMATE, title: 'Ищу соседа в 2-комн., Самал, бюджет до 120к', price: 110000, type: HousingType.SEPARATE_ROOM, rooms: 2, district: 'almaty-medeu', metro: null },
+    { name: 'Аружан', age: 20, gender: Gender.FEMALE, occ: Occupation.STUDENT, kind: ListingKind.OFFER_ROOM, title: 'Койко-место в комнате, рядом с университетом', price: 45000, type: HousingType.BED_SPACE, rooms: 1, district: 'almaty-almaly', metro: 'Абая' },
+    { name: 'Ержан', age: 26, gender: Gender.MALE, occ: Occupation.WORKING, kind: ListingKind.SEEK_ROOMMATE, title: 'Айтишник 26 лет ищет соседа в 3-комн.', price: 130000, type: HousingType.SEPARATE_ROOM, rooms: 3, district: 'almaty-auezov', metro: 'Сайран' },
+    { name: 'Мадина', age: 29, gender: Gender.FEMALE, occ: Occupation.WORKING, kind: ListingKind.OFFER_ROOM, title: 'Комната в новом ЖК, мебель новая', price: 150000, type: HousingType.SEPARATE_ROOM, rooms: 3, district: 'almaty-bostandyk', metro: 'Байконур' },
+    { name: 'Жанель', age: 23, gender: Gender.FEMALE, occ: Occupation.WORKING, kind: ListingKind.SEEK_ROOMMATE, title: 'Ищу спокойную соседку, делим аренду пополам', price: 80000, type: HousingType.SHARED_ROOM, rooms: 2, district: 'almaty-medeu', metro: null },
+    { name: 'Бекзат', age: 31, gender: Gender.MALE, occ: Occupation.WORKING, kind: ListingKind.OFFER_ROOM, title: 'Уютная комната в районе Орбита-3', price: 70000, type: HousingType.SEPARATE_ROOM, rooms: 2, district: 'almaty-auezov', metro: 'Алатау' },
+    { name: 'Алишер', age: 19, gender: Gender.MALE, occ: Occupation.STUDENT, kind: ListingKind.SEEK_ROOMMATE, title: 'Двое студентов ищут третьего в 3-комн.', price: 60000, type: HousingType.BED_SPACE, rooms: 3, district: 'almaty-almaly', metro: 'Жибек Жолы' }
   ];
 
   let i = 2;
@@ -105,7 +99,7 @@ async function main() {
       }
     });
 
-    const district = await prisma.district.findUnique({ where: { slug: slugify(d.district) } });
+    const district = await prisma.district.findUnique({ where: { slug: d.district } });
     const already = await prisma.listing.findFirst({ where: { title: d.title } });
     if (already) continue;
 
@@ -132,7 +126,77 @@ async function main() {
     });
   }
 
-  console.log('Готово. Админ: +77000000001 / admin12345');
+  // Демо-переписка: диалог по объявлению и обращение в поддержку,
+  // чтобы раздел «Сообщения» не открывался пустым на свежей базе
+  const [seeker, host] = await Promise.all([
+    prisma.user.findUnique({ where: { phone: '+77000000002' } }),
+    prisma.user.findFirst({ where: { name: 'Айгерим' } })
+  ]);
+
+  if (seeker && host) {
+    const hostListing = await prisma.listing.findFirst({ where: { authorId: host.id } });
+
+    if (hostListing) {
+      const existing = await prisma.thread.findFirst({
+        where: { kind: 'LISTING', listingId: hostListing.id, userAId: seeker.id }
+      });
+
+      if (!existing) {
+        const thread = await prisma.thread.create({
+          data: { kind: 'LISTING', listingId: hostListing.id, userAId: seeker.id, userBId: host.id }
+        });
+        await prisma.message.createMany({
+          data: [
+            {
+              threadId: thread.id,
+              senderId: seeker.id,
+              body: 'Здравствуйте! Комната ещё свободна? Могу посмотреть в субботу днём.',
+              createdAt: new Date(Date.now() - 3 * 3600_000),
+              readAt: new Date(Date.now() - 2.5 * 3600_000)
+            },
+            {
+              threadId: thread.id,
+              senderId: host.id,
+              body: 'Добрый день, да, свободна. В субботу после 12 удобно. Коммуналка делится на троих.',
+              createdAt: new Date(Date.now() - 2 * 3600_000)
+            }
+          ]
+        });
+        await prisma.thread.update({
+          where: { id: thread.id },
+          data: { lastMessageAt: new Date(Date.now() - 2 * 3600_000) }
+        });
+      }
+    }
+
+    const ticketExists = await prisma.thread.findFirst({ where: { kind: 'SUPPORT', userAId: seeker.id } });
+    if (!ticketExists) {
+      const ticket = await prisma.thread.create({
+        data: {
+          kind: 'SUPPORT',
+          userAId: seeker.id,
+          subject: 'Не открылись контакты после списания',
+          status: 'OPEN'
+        }
+      });
+      await prisma.message.create({
+        data: {
+          threadId: ticket.id,
+          senderId: seeker.id,
+          body: 'Списали 300 ₸ за открытие контактов, но номер не показался. Объявление №4.',
+          createdAt: new Date(Date.now() - 26 * 3600_000)
+        }
+      });
+      await prisma.thread.update({
+        where: { id: ticket.id },
+        data: { lastMessageAt: new Date(Date.now() - 26 * 3600_000) }
+      });
+    }
+  }
+
+  const districtCount = await prisma.district.count();
+  console.log(`Готово. Городов: ${KZ_CITIES.length}, районов: ${districtCount}`);
+  console.log('Админ: +77000000001 / admin12345 · Пользователь: +77000000002 / demo12345');
   console.log(`Создан пользователь ${admin.name}`);
 }
 

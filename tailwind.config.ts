@@ -13,7 +13,14 @@ const config: Config = {
         line: '#E9EAE8',
         mint: { DEFAULT: '#DEF1E4', ink: '#0F6B3F', dot: '#22A06B' },
         danger: { DEFAULT: '#C2453A', soft: '#FBEAE8' },
-        gold: { DEFAULT: '#F4C443', soft: '#FDF6E3' }
+        gold: { DEFAULT: '#F4C443', soft: '#FDF6E3' },
+
+        // brand и accent использовались в разметке (text-brand, bg-brand-soft,
+        // border-accent), но в палитре их не было — Tailwind молча выбрасывал
+        // такие классы, и подсветка просто не отрисовывалась. Заводим токены
+        // явно поверх уже принятых мятного и золотого.
+        brand: { DEFAULT: '#22A06B', soft: '#DEF1E4', ink: '#0F6B3F' },
+        accent: { DEFAULT: '#F4C443', soft: '#FDF6E3', ink: '#7A5A08' }
       },
       fontFamily: {
         display: ['var(--font-display)', 'system-ui', 'sans-serif'],

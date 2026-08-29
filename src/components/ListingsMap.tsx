@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { tenge } from '@/lib/format';
-import { geocodeCity } from '@/lib/geocode2gis';
+
 import { KZ_DEFAULT_CENTER, getKzCity } from '@/lib/kzCities';
 
 const API_KEY = process.env.NEXT_PUBLIC_2GIS_API_KEY;
@@ -58,17 +58,15 @@ export function ListingsMap({ listings, citySlug }: { listings: MapListing[]; ci
         await loadMapgl();
         if (cancelled || !containerRef.current) return;
 
+        // Все открытые города имеют координаты в справочнике, поэтому
+        // геокодер для центра карты больше не нужен: минус сетевой запрос
+        // и минус мигание карты на первом кадре.
         const known = getKzCity(citySlug);
-        let center: [number, number] = known?.lng && known?.lat ? [known.lng, known.lat] : KZ_DEFAULT_CENTER;
-
-        if (!known?.lat) {
-          const geo = await geocodeCity(known?.name ?? citySlug);
-          if (geo) center = [geo.lng, geo.lat];
-        }
+        const center: [number, number] = known ? [known.lng, known.lat] : KZ_DEFAULT_CENTER;
 
         const map = new window.mapgl.Map(containerRef.current, {
           center,
-          zoom: pins.length ? 12 : 11,
+          zoom: pins.length ? 12 : (known?.zoom ?? 11),
           key: API_KEY
         });
         mapRef.current = map;

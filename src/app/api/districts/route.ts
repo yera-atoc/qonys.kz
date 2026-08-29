@@ -5,8 +5,8 @@ export async function GET(req: Request) {
   const city = new URL(req.url).searchParams.get('city') ?? 'almaty';
   const districts = await prisma.district.findMany({
     where: { city },
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true }
+    orderBy: { sort: 'asc' },
+    select: { id: true, name: true, nameKk: true, nameEn: true }
   });
   return NextResponse.json({ districts });
 }

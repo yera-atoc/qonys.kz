@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { KZ_CITIES_BY_REGION } from '@/lib/kzCities';
+import { CitySelect } from './CitySelect';
 import { LocationPicker } from '@/components/LocationPicker';
 
 const HABITS = ['не курю', 'курю на балконе', 'без животных', 'есть кот', 'тихий режим', 'ранние подъёмы', 'готовлю дома', 'без гостей'];
@@ -182,21 +182,7 @@ export function ListingForm({
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="city">Город</label>
-          <select
-            id="city"
-            name="city"
-            className="field"
-            value={city}
-            onChange={(e) => onCityChange(e.target.value)}
-          >
-            {Object.entries(KZ_CITIES_BY_REGION).map(([region, cities]) => (
-              <optgroup key={region} label={region}>
-                {cities.map((c) => (
-                  <option key={c.slug} value={c.slug}>{c.name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+          <CitySelect id="city" name="city" value={city} onChange={onCityChange} />
         </div>
         <div>
           <label className="label" htmlFor="districtId">Район</label>

@@ -7,10 +7,12 @@ import { tenge } from '@/lib/format';
 
 const NAV = [
   { href: '/cabinet', label: 'Обзор' },
+  { href: '/cabinet/chat', label: 'Сообщения' },
   { href: '/cabinet/listings', label: 'Мои объявления' },
   { href: '/cabinet/billing', label: 'Баланс и платежи' },
   { href: '/cabinet/plans', label: 'Тариф' },
-  { href: '/cabinet/profile', label: 'Профиль' }
+  { href: '/cabinet/profile', label: 'Профиль' },
+  { href: '/cabinet/support', label: 'Поддержка' }
 ];
 
 export default async function CabinetLayout({ children }: { children: React.ReactNode }) {

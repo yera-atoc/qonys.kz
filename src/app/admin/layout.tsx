@@ -11,6 +11,7 @@ const NAV = [
   { href: '/admin/users', label: 'Пользователи' },
   { href: '/admin/payments', label: 'Платежи' },
   { href: '/admin/tariffs', label: 'Тарифы и пакеты' },
+  { href: '/admin/support', label: 'Поддержка' },
   { href: '/admin/complaints', label: 'Жалобы' },
   { href: '/admin/settings', label: 'Настройки' }
 ];
@@ -20,9 +21,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!me) redirect('/login?callbackUrl=/admin');
   if (me.role !== 'ADMIN' && me.role !== 'MODERATOR') redirect('/cabinet');
 
-  const [moderationCount, complaintCount] = await Promise.all([
+  const [moderationCount, complaintCount, supportCount] = await Promise.all([
     prisma.listing.count({ where: { status: 'MODERATION' } }),
-    prisma.complaint.count({ where: { status: 'NEW' } })
+    prisma.complaint.count({ where: { status: 'NEW' } }),
+    prisma.thread.count({ where: { kind: 'SUPPORT', status: 'OPEN' } })
   ]);
 
   return (
@@ -46,6 +48,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               {item.href === '/admin/moderation' && moderationCount > 0 && (
                 <span className="ml-2 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-ink">
                   {moderationCount}
+                </span>
+              )}
+              {item.href === '/admin/support' && supportCount > 0 && (
+                <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold text-ink">
+                  {supportCount}
                 </span>
               )}
               {item.href === '/admin/complaints' && complaintCount > 0 && (
